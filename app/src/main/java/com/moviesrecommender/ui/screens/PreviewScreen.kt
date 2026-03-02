@@ -4,7 +4,6 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -17,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,9 +25,9 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -123,7 +123,7 @@ private fun LoadedContent(
                     contentDescription = title.title,
                     contentScale = ContentScale.FillWidth,
                     modifier = Modifier
-                        .width(maxWidth * 0.9f)
+                        .width(maxWidth * 0.8f)
                         .padding(top = 16.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
@@ -195,46 +195,33 @@ private fun IconRow(
     onOpenUrl: (String) -> Unit
 ) {
     Row(
-        modifier = Modifier
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         val query = Uri.encode("${title.title} ${title.year}")
-        AssistChip(
-            onClick = { onOpenUrl("https://www.youtube.com/results?search_query=$query") },
-            label = { Text("YouTube") },
-            leadingIcon = {
+        IconButton(onClick = { onOpenUrl("https://www.youtube.com/results?search_query=$query") }) {
+            Icon(
+                painter = painterResource(R.drawable.ic_youtube),
+                contentDescription = "YouTube",
+                tint = androidx.compose.ui.graphics.Color.Unspecified,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+        when {
+            !wikipediaReady -> Box(
+                modifier = Modifier.size(48.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            }
+            wikipediaUrl != null -> IconButton(onClick = { onOpenUrl(wikipediaUrl) }) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_youtube),
-                    contentDescription = "YouTube",
-                    tint = androidx.compose.ui.graphics.Color.Unspecified,
-                    modifier = Modifier.size(AssistChipDefaults.IconSize)
+                    Icons.Default.Language,
+                    contentDescription = "Wikipedia",
+                    modifier = Modifier.size(28.dp)
                 )
             }
-        )
-        when {
-            !wikipediaReady -> AssistChip(
-                onClick = {},
-                enabled = false,
-                label = { Text("Wikipedia") },
-                leadingIcon = {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(AssistChipDefaults.IconSize),
-                        strokeWidth = 2.dp
-                    )
-                }
-            )
-            wikipediaUrl != null -> AssistChip(
-                onClick = { onOpenUrl(wikipediaUrl) },
-                label = { Text("Wikipedia") },
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.Language, contentDescription = null,
-                        modifier = Modifier.size(AssistChipDefaults.IconSize)
-                    )
-                }
-            )
         }
     }
 }
