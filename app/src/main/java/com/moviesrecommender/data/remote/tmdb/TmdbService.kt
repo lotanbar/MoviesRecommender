@@ -41,6 +41,19 @@ class TmdbService(
         }
     }
 
+    suspend fun fetchDetails(id: Int, mediaType: MediaType): TmdbResult<Title> {
+        val apiKey = store[KEY_TMDB] ?: return TmdbResult.Failure(TmdbError.InvalidApiKey)
+        return try {
+            TmdbResult.Success(apiClient.fetchDetails(id, mediaType, apiKey))
+        } catch (e: TmdbApiException.Unauthorized) {
+            TmdbResult.Failure(TmdbError.InvalidApiKey)
+        } catch (e: TmdbApiException.NoNetwork) {
+            TmdbResult.Failure(TmdbError.NoInternet)
+        } catch (e: TmdbApiException.ServerError) {
+            TmdbResult.Failure(TmdbError.ApiError(e.message ?: "Unknown error"))
+        }
+    }
+
     suspend fun fetchMetadata(title: String, year: Int): TmdbResult<Title> {
         val apiKey = store[KEY_TMDB] ?: return TmdbResult.Failure(TmdbError.InvalidApiKey)
         return try {
