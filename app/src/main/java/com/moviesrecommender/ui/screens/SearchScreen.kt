@@ -111,6 +111,7 @@ fun SearchScreen(
                             TitleRow(
                                 title = item.title,
                                 rating = item.rating,
+                                showAbsentBadge = false,
                                 onClick = {
                                     navController.navigate(
                                         Screen.Preview.createRoute(

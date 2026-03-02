@@ -29,7 +29,8 @@ import com.moviesrecommender.ui.theme.RatingBadge
 fun TitleRow(
     title: Title,
     rating: Int?,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    showAbsentBadge: Boolean = true
 ) {
     Row(
         modifier = Modifier
@@ -57,11 +58,13 @@ fun TitleRow(
             )
             Text(
                 text = "(${title.year})",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        RatingBadge(rating)
+        if (rating != null || showAbsentBadge) {
+            RatingBadge(rating)
+        }
     }
 }
 
