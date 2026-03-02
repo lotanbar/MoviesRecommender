@@ -70,6 +70,7 @@ class SetupViewModel : ViewModel() {
                     when (result.error) {
                         TmdbError.InvalidApiKey -> "Invalid TMDB API key."
                         TmdbError.NoInternet -> "No internet connection."
+                        TmdbError.NotFound -> "TMDB request failed. Please try again."
                         is TmdbError.ApiError -> "TMDB request failed. Please try again."
                     }
                 )

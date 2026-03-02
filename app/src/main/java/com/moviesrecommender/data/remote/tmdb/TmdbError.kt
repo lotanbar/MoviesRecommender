@@ -3,6 +3,7 @@ package com.moviesrecommender.data.remote.tmdb
 sealed class TmdbError {
     object InvalidApiKey : TmdbError()
     object NoInternet : TmdbError()
+    object NotFound : TmdbError()
     data class ApiError(val message: String) : TmdbError()
 }
 
