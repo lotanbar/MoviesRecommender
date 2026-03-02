@@ -21,10 +21,11 @@ class OkHttpDropboxApiClient(
 
     override suspend fun download(path: String, accessToken: String): String =
         withContext(Dispatchers.IO) {
+            val arg = JSONObject().put("path", path).toString()
             val request = Request.Builder()
                 .url("https://content.dropboxapi.com/2/files/download")
                 .addHeader("Authorization", "Bearer $accessToken")
-                .addHeader("Dropbox-API-Arg", """{"path":"$path"}""")
+                .addHeader("Dropbox-API-Arg", arg)
                 .post("".toRequestBody(octetStream))
                 .build()
             execute(request)
@@ -32,7 +33,11 @@ class OkHttpDropboxApiClient(
 
     override suspend fun listEntries(path: String, accessToken: String): DropboxEntries =
         withContext(Dispatchers.IO) {
-            val body = """{"path":"$path","recursive":false,"include_non_downloadable_files":false}"""
+            val body = JSONObject()
+                .put("path", path)
+                .put("recursive", false)
+                .put("include_non_downloadable_files", false)
+                .toString()
             val request = Request.Builder()
                 .url("https://api.dropboxapi.com/2/files/list_folder")
                 .addHeader("Authorization", "Bearer $accessToken")
@@ -52,7 +57,11 @@ class OkHttpDropboxApiClient(
 
     override suspend fun upload(path: String, content: String, accessToken: String) =
         withContext(Dispatchers.IO) {
-            val arg = """{"path":"$path","mode":"overwrite","autorename":false}"""
+            val arg = JSONObject()
+                .put("path", path)
+                .put("mode", "overwrite")
+                .put("autorename", false)
+                .toString()
             val request = Request.Builder()
                 .url("https://content.dropboxapi.com/2/files/upload")
                 .addHeader("Authorization", "Bearer $accessToken")
