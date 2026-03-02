@@ -131,44 +131,60 @@ private fun LoadedContent(
             }
         }
         item {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    text = title.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = title.year.toString(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                MediaTypePill(title.mediaType)
+            Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 2.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = title.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = title.year.toString(),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    MediaTypePill(title.mediaType)
+                }
             }
         }
         item {
-            IconRow(
-                title = title,
-                wikipediaUrl = state.wikipediaUrl,
-                wikipediaReady = state.wikipediaReady,
-                onOpenUrl = ::openUrl
-            )
-        }
-        if (title.genres.isNotEmpty()) {
-            item {
-                Row(
-                    modifier = Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    title.genres.forEach { genre ->
-                        AssistChip(onClick = {}, label = { Text(genre) })
+            // Icons + genre chips in one scrollable row, tight under the title
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = 4.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                val query = Uri.encode("${title.title} ${title.year}")
+                IconButton(onClick = { openUrl("https://www.youtube.com/results?search_query=$query") }) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_youtube),
+                        contentDescription = "YouTube",
+                        tint = androidx.compose.ui.graphics.Color.Unspecified,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                when {
+                    !state.wikipediaReady -> Box(
+                        modifier = Modifier.size(48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     }
+                    state.wikipediaUrl != null -> IconButton(onClick = { openUrl(state.wikipediaUrl) }) {
+                        Icon(
+                            Icons.Default.Language,
+                            contentDescription = "Wikipedia",
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+                title.genres.forEach { genre ->
+                    AssistChip(onClick = {}, label = { Text(genre) })
                 }
             }
         }
@@ -184,44 +200,49 @@ private fun LoadedContent(
         item {
             CreditsSection(title)
         }
+        if (state.awardsReady && state.awards.isNotEmpty()) {
+            item {
+                AwardsSection(state.awards)
+            }
+        }
     }
 }
 
 @Composable
-private fun IconRow(
-    title: Title,
-    wikipediaUrl: String?,
-    wikipediaReady: Boolean,
-    onOpenUrl: (String) -> Unit
-) {
-    Row(
-        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically
+private fun MediaTypePill(mediaType: MediaType) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        val query = Uri.encode("${title.title} ${title.year}")
-        IconButton(onClick = { onOpenUrl("https://www.youtube.com/results?search_query=$query") }) {
-            Icon(
-                painter = painterResource(R.drawable.ic_youtube),
-                contentDescription = "YouTube",
-                tint = androidx.compose.ui.graphics.Color.Unspecified,
-                modifier = Modifier.size(28.dp)
+        Text(
+            text = if (mediaType == MediaType.TV) "TV" else "Film",
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+    }
+}
+
+@Composable
+private fun AwardsSection(awards: List<String>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = "Awards",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        awards.forEach { award ->
+            Text(
+                text = "· $award",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-        when {
-            !wikipediaReady -> Box(
-                modifier = Modifier.size(48.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            }
-            wikipediaUrl != null -> IconButton(onClick = { onOpenUrl(wikipediaUrl) }) {
-                Icon(
-                    Icons.Default.Language,
-                    contentDescription = "Wikipedia",
-                    modifier = Modifier.size(28.dp)
-                )
-            }
         }
     }
 }
@@ -315,21 +336,6 @@ private fun RatingCircleButton(
     }
 }
 
-@Composable
-private fun MediaTypePill(mediaType: MediaType) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer)
-            .padding(horizontal = 6.dp, vertical = 2.dp)
-    ) {
-        Text(
-            text = if (mediaType == MediaType.TV) "TV" else "Film",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer
-        )
-    }
-}
 
 @Composable
 private fun CreditsSection(title: Title) {
