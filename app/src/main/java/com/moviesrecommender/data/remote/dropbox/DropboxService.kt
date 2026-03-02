@@ -1,7 +1,5 @@
 package com.moviesrecommender.data.remote.dropbox
 
-private const val LIST_FILE_NAME = "movie_list.txt"
-
 class DropboxService(
     val authManager: DropboxAuthManager,
     private val apiClient: DropboxApiClient
@@ -24,20 +22,20 @@ class DropboxService(
         }
     }
 
+    suspend fun listEntries(path: String): DropboxResult<DropboxEntries> {
+        return executeWithRefresh { token -> apiClient.listEntries(path, token) }
+    }
+
     suspend fun downloadList(): DropboxResult<String> {
         val path = authManager.getListPath()
-            ?: return DropboxResult.Failure(DropboxError.Unknown("List path not configured"))
-        return executeWithRefresh { token ->
-            apiClient.download("$path/$LIST_FILE_NAME", token)
-        }
+            ?: return DropboxResult.Failure(DropboxError.Unknown("List file not configured"))
+        return executeWithRefresh { token -> apiClient.download(path, token) }
     }
 
     suspend fun uploadList(content: String): DropboxResult<Unit> {
         val path = authManager.getListPath()
-            ?: return DropboxResult.Failure(DropboxError.Unknown("List path not configured"))
-        return executeWithRefresh { token ->
-            apiClient.upload("$path/$LIST_FILE_NAME", content, token)
-        }
+            ?: return DropboxResult.Failure(DropboxError.Unknown("List file not configured"))
+        return executeWithRefresh { token -> apiClient.upload(path, content, token) }
     }
 
     suspend fun refreshToken(): DropboxResult<Unit> {

@@ -1,5 +1,6 @@
 package com.moviesrecommender.data.remote.dropbox
 
+import java.net.URLEncoder
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
@@ -26,13 +27,18 @@ class DropboxAuthManager(private val store: TokenStore) {
         store[KEY_CODE_VERIFIER] = verifier
         store[KEY_APP_KEY] = appKey
         val challenge = generateCodeChallenge(verifier)
+        val encodedRedirect = URLEncoder.encode(REDIRECT_URI, "UTF-8")
+        val encodedScope = URLEncoder.encode(
+            "files.metadata.read files.content.read files.content.write", "UTF-8"
+        )
         return "https://www.dropbox.com/oauth2/authorize" +
             "?client_id=$appKey" +
             "&response_type=code" +
             "&code_challenge=$challenge" +
             "&code_challenge_method=S256" +
-            "&redirect_uri=$REDIRECT_URI" +
-            "&token_access_type=offline"
+            "&redirect_uri=$encodedRedirect" +
+            "&token_access_type=offline" +
+            "&scope=$encodedScope"
     }
 
     fun saveTokens(accessToken: String, refreshToken: String) {

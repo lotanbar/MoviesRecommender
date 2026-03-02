@@ -31,6 +31,7 @@ import androidx.navigation.NavHostController
 import com.moviesrecommender.AppViewModel
 import com.moviesrecommender.navigation.Screen
 import com.moviesrecommender.ui.components.CheckButton
+import com.moviesrecommender.ui.components.FolderPickerDialog
 import com.moviesrecommender.util.ToastManager
 import kotlinx.coroutines.delay
 
@@ -68,10 +69,8 @@ fun SetupScreen(
     }
 
     if (showListPathDialog) {
-        InputDialog(
-            title = "Dropbox folder path",
-            placeholder = "/Apps/MovieList",
-            onConfirm = { path ->
+        FolderPickerDialog(
+            onFileSelected = { path ->
                 showListPathDialog = false
                 setupViewModel.saveListPath(path)
             },
@@ -132,7 +131,7 @@ fun SetupScreen(
             Spacer(Modifier.height(12.dp))
 
             CheckButton(
-                label = "Pick list directory",
+                label = "Pick list file",
                 completed = listPathSet,
                 enabled = dropboxAuthenticated,
                 onClick = {

@@ -107,6 +107,9 @@ class FakeDropboxApiClient : DropboxApiClient {
     var refreshTokenResponse: String = "refreshed_token"
     var refreshException: DropboxApiException? = null
 
+    override suspend fun listEntries(path: String, accessToken: String): DropboxEntries =
+        DropboxEntries(emptyList(), emptyList())
+
     override suspend fun download(path: String, accessToken: String): String {
         downloadCallCount++
         if (downloadUnauthorizedOnFirstCall && downloadCallCount == 1) throw DropboxApiException.Unauthorized()

@@ -38,9 +38,11 @@ class SetupViewModel : ViewModel() {
 
     fun handleDropboxCallback(code: String) {
         viewModelScope.launch {
-            when (dropboxService.handleAuthCallback(code)) {
+            when (val result = dropboxService.handleAuthCallback(code)) {
                 is DropboxResult.Success -> _dropboxAuthenticated.value = true
-                is DropboxResult.Failure -> ToastManager.show("Dropbox authentication failed.")
+                is DropboxResult.Failure -> ToastManager.show(
+                    "Dropbox auth failed: ${result.error}"
+                )
             }
         }
     }
