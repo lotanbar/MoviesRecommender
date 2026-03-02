@@ -18,20 +18,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,7 +43,6 @@ import com.moviesrecommender.data.remote.tmdb.MediaType
 import com.moviesrecommender.data.remote.tmdb.Title
 import com.moviesrecommender.ui.theme.StarYellow
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PreviewScreen(
     navController: NavHostController,
@@ -59,42 +54,29 @@ fun PreviewScreen(
     )
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            when (val state = uiState) {
-                is PreviewUiState.Loading -> {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                }
-                is PreviewUiState.Error -> {
-                    Text(
-                        text = state.message,
-                        modifier = Modifier.align(Alignment.Center),
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-                is PreviewUiState.Loaded -> {
-                    LoadedContent(
-                        state = state,
-                        onToggleInList = viewModel::toggleInList,
-                        onSetRating = viewModel::setRating,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        when (val state = uiState) {
+            is PreviewUiState.Loading -> {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
+            is PreviewUiState.Error -> {
+                Text(
+                    text = state.message,
+                    modifier = Modifier.align(Alignment.Center),
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            is PreviewUiState.Loaded -> {
+                LoadedContent(
+                    state = state,
+                    onToggleInList = viewModel::toggleInList,
+                    onSetRating = viewModel::setRating,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }
@@ -110,31 +92,40 @@ private fun LoadedContent(
     val title = state.title
     LazyColumn(modifier = modifier) {
         item {
-            AsyncImage(
-                model = title.posterUrl(500),
-                contentDescription = title.title,
-                contentScale = ContentScale.Crop,
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(2f / 3f)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            )
+                    .padding(top = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = title.posterUrl(500),
+                    contentDescription = title.title,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                )
+            }
         }
         item {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                Text(title.title, style = MaterialTheme.typography.headlineSmall)
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = title.year.toString(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    MediaTypePill(title.mediaType)
-                }
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = title.title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = title.year.toString(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                MediaTypePill(title.mediaType)
             }
         }
         if (title.genres.isNotEmpty()) {
