@@ -25,14 +25,17 @@ class TmdbServiceTest {
 
     @Test
     fun `search returns list of titles on success`() = runTest {
-        apiClient.searchResponse = listOf(
-            fakeTitle(id = 1, title = "The Matrix", year = 1999),
-            fakeTitle(id = 2, title = "The Matrix Reloaded", year = 2003)
+        apiClient.searchResponse = SearchPage(
+            titles = listOf(
+                fakeTitle(id = 1, title = "The Matrix", year = 1999),
+                fakeTitle(id = 2, title = "The Matrix Reloaded", year = 2003)
+            ),
+            totalPages = 1
         )
         val result = service.search("Matrix")
         assertTrue(result is TmdbResult.Success)
-        assertEquals(2, (result as TmdbResult.Success).value.size)
-        assertEquals("The Matrix", result.value[0].title)
+        assertEquals(2, (result as TmdbResult.Success).value.titles.size)
+        assertEquals("The Matrix", result.value.titles[0].title)
     }
 
     @Test
@@ -72,7 +75,7 @@ class TmdbServiceTest {
             leadActors = listOf("Tim Robbins", "Morgan Freeman"),
             productionCompany = "Castle Rock Entertainment"
         )
-        apiClient.searchResponse = listOf(searchCandidate)
+        apiClient.searchResponse = SearchPage(listOf(searchCandidate), 1)
         apiClient.detailsResponse = fullTitle
 
         val result = service.fetchMetadata("The Shawshank Redemption", 1994)
@@ -87,7 +90,7 @@ class TmdbServiceTest {
     fun `fetchMetadata prefers exact year match over first result`() = runTest {
         val wrongYear = fakeTitle(id = 1, title = "Dune", year = 1984)
         val rightYear = fakeTitle(id = 2, title = "Dune", year = 2021)
-        apiClient.searchResponse = listOf(wrongYear, rightYear)
+        apiClient.searchResponse = SearchPage(listOf(wrongYear, rightYear), 1)
         apiClient.detailsResponse = rightYear
 
         val result = service.fetchMetadata("Dune", 2021)
@@ -98,7 +101,7 @@ class TmdbServiceTest {
 
     @Test
     fun `fetchMetadata returns NotFound when search yields no results`() = runTest {
-        apiClient.searchResponse = emptyList()
+        apiClient.searchResponse = SearchPage(emptyList(), 0)
         val result = service.fetchMetadata("Nonexistent Title", 2025)
         assertTrue(result is TmdbResult.Failure)
         assertEquals(TmdbError.NotFound, (result as TmdbResult.Failure).error)
@@ -148,7 +151,7 @@ class FakeTmdbTokenStore : TokenStore {
 
 class FakeTmdbApiClient : TmdbApiClient {
 
-    var searchResponse: List<Title> = emptyList()
+    var searchResponse: SearchPage = SearchPage(emptyList(), 1)
     var searchException: TmdbApiException? = null
 
     var detailsResponse: Title = fakeTitle()
@@ -157,7 +160,7 @@ class FakeTmdbApiClient : TmdbApiClient {
 
     override suspend fun validateApiKey(apiKey: String) {}
 
-    override suspend fun search(query: String, apiKey: String): List<Title> {
+    override suspend fun search(query: String, apiKey: String, page: Int): SearchPage {
         searchException?.let { throw it }
         return searchResponse
     }

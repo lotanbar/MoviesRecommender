@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -21,10 +23,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -40,6 +46,27 @@ fun SearchScreen(
     val query by viewModel.query.collectAsState()
     val results by viewModel.results.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
+    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+
+    val listState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
+
+    // Close keyboard when the user starts scrolling
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress) focusManager.clearFocus()
+    }
+
+    // Trigger loadMore when the last item is visible
+    val reachedBottom by remember {
+        derivedStateOf {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()
+            lastVisible != null &&
+                lastVisible.index >= listState.layoutInfo.totalItemsCount - 1
+        }
+    }
+    LaunchedEffect(reachedBottom) {
+        if (reachedBottom && results.isNotEmpty()) viewModel.loadMore()
+    }
 
     Scaffold(
         modifier = Modifier.imePadding(),
@@ -76,7 +103,10 @@ fun SearchScreen(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
                 results.isNotEmpty() -> {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
                         items(results, key = { it.title.id }) { item ->
                             TitleRow(
                                 title = item.title,
@@ -94,6 +124,18 @@ fun SearchScreen(
                                 modifier = Modifier.padding(horizontal = 16.dp),
                                 color = MaterialTheme.colorScheme.surfaceVariant
                             )
+                        }
+                        if (isLoadingMore) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                }
+                            }
                         }
                     }
                 }

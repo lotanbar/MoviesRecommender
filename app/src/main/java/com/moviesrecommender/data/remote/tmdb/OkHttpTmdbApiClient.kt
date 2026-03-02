@@ -17,13 +17,14 @@ class OkHttpTmdbApiClient(
         executeGet("https://api.themoviedb.org/3/authentication?api_key=$apiKey")
     }
 
-    override suspend fun search(query: String, apiKey: String): List<Title> =
+    override suspend fun search(query: String, apiKey: String, page: Int): SearchPage =
         withContext(Dispatchers.IO) {
             val encoded = URLEncoder.encode(query, "UTF-8")
-            val body = executeGet(
-                "https://api.themoviedb.org/3/search/multi?query=$encoded&api_key=$apiKey&page=1"
+            val root = JSONObject(
+                executeGet("https://api.themoviedb.org/3/search/multi?query=$encoded&api_key=$apiKey&page=$page")
             )
-            val results = JSONObject(body).getJSONArray("results")
+            val totalPages = root.optInt("total_pages", 1)
+            val results = root.getJSONArray("results")
             val titles = mutableListOf<Title>()
             for (i in 0 until results.length()) {
                 val obj = results.getJSONObject(i)
@@ -52,9 +53,8 @@ class OkHttpTmdbApiClient(
                         mediaType = mediaType
                     )
                 )
-                if (titles.size == 8) break
             }
-            titles
+            SearchPage(titles, totalPages)
         }
 
     override suspend fun fetchDetails(id: Int, mediaType: MediaType, apiKey: String): Title =

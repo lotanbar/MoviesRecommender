@@ -28,10 +28,10 @@ class TmdbService(
         }
     }
 
-    suspend fun search(query: String): TmdbResult<List<Title>> {
+    suspend fun search(query: String, page: Int = 1): TmdbResult<SearchPage> {
         val apiKey = store[KEY_TMDB] ?: return TmdbResult.Failure(TmdbError.InvalidApiKey)
         return try {
-            TmdbResult.Success(apiClient.search(query, apiKey))
+            TmdbResult.Success(apiClient.search(query, apiKey, page))
         } catch (e: TmdbApiException.Unauthorized) {
             TmdbResult.Failure(TmdbError.InvalidApiKey)
         } catch (e: TmdbApiException.NoNetwork) {
@@ -44,7 +44,7 @@ class TmdbService(
     suspend fun fetchMetadata(title: String, year: Int): TmdbResult<Title> {
         val apiKey = store[KEY_TMDB] ?: return TmdbResult.Failure(TmdbError.InvalidApiKey)
         return try {
-            val candidates = apiClient.search("$title $year", apiKey)
+            val candidates = apiClient.search("$title $year", apiKey, 1).titles
             val match = candidates.firstOrNull { it.year == year } ?: candidates.firstOrNull()
                 ?: return TmdbResult.Failure(TmdbError.NotFound)
             TmdbResult.Success(apiClient.fetchDetails(match.id, match.mediaType, apiKey))
