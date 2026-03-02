@@ -3,52 +3,53 @@ package com.moviesrecommender.ui.screens
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import com.moviesrecommender.R
 import com.moviesrecommender.data.remote.tmdb.MediaType
 import com.moviesrecommender.data.remote.tmdb.Title
-import com.moviesrecommender.ui.theme.StarYellow
 
 @Composable
 fun PreviewScreen(
@@ -61,29 +62,42 @@ fun PreviewScreen(
     )
     val uiState by viewModel.uiState.collectAsState()
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        when (val state = uiState) {
-            is PreviewUiState.Loading -> {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            }
-            is PreviewUiState.Error -> {
-                Text(
-                    text = state.message,
-                    modifier = Modifier.align(Alignment.Center),
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-            is PreviewUiState.Loaded -> {
-                LoadedContent(
-                    state = state,
+    Scaffold(
+        bottomBar = {
+            val loaded = uiState as? PreviewUiState.Loaded
+            if (loaded != null) {
+                RatingBottomBar(
+                    rating = loaded.rating,
+                    isUploading = loaded.isUploading,
+                    uploadError = loaded.uploadError,
                     onToggleInList = viewModel::toggleInList,
-                    onSetRating = viewModel::setRating,
-                    modifier = Modifier.fillMaxSize()
+                    onSetRating = viewModel::setRating
                 )
+            }
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            when (val state = uiState) {
+                is PreviewUiState.Loading -> {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                }
+                is PreviewUiState.Error -> {
+                    Text(
+                        text = state.message,
+                        modifier = Modifier.align(Alignment.Center),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                is PreviewUiState.Loaded -> {
+                    LoadedContent(
+                        state = state,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
     }
@@ -92,8 +106,6 @@ fun PreviewScreen(
 @Composable
 private fun LoadedContent(
     state: PreviewUiState.Loaded,
-    onToggleInList: () -> Unit,
-    onSetRating: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val title = state.title
@@ -102,18 +114,17 @@ private fun LoadedContent(
 
     LazyColumn(modifier = modifier) {
         item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
                     model = title.posterUrl(500),
                     contentDescription = title.title,
-                    contentScale = ContentScale.Fit,
+                    contentScale = ContentScale.FillWidth,
                     modifier = Modifier
-                        .fillMaxWidth(0.9f)
+                        .width(maxWidth * 0.9f)
+                        .padding(top = 16.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                 )
@@ -173,15 +184,6 @@ private fun LoadedContent(
         item {
             CreditsSection(title)
         }
-        item {
-            RatingSection(
-                rating = state.rating,
-                isUploading = state.isUploading,
-                uploadError = state.uploadError,
-                onToggleInList = onToggleInList,
-                onSetRating = onSetRating
-            )
-        }
     }
 }
 
@@ -198,13 +200,17 @@ private fun IconRow(
             .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        val query = Uri.encode("${title.title} ${title.year} trailer")
+        val query = Uri.encode("${title.title} ${title.year}")
         AssistChip(
             onClick = { onOpenUrl("https://www.youtube.com/results?search_query=$query") },
-            label = { Text("Trailer") },
+            label = { Text("YouTube") },
             leadingIcon = {
-                Icon(Icons.Default.PlayArrow, contentDescription = null,
-                    modifier = Modifier.size(AssistChipDefaults.IconSize))
+                Icon(
+                    painter = painterResource(R.drawable.ic_youtube),
+                    contentDescription = "YouTube",
+                    tint = androidx.compose.ui.graphics.Color.Unspecified,
+                    modifier = Modifier.size(AssistChipDefaults.IconSize)
+                )
             }
         )
         when {
@@ -223,20 +229,101 @@ private fun IconRow(
                 onClick = { onOpenUrl(wikipediaUrl) },
                 label = { Text("Wikipedia") },
                 leadingIcon = {
-                    Icon(Icons.Default.Language, contentDescription = null,
-                        modifier = Modifier.size(AssistChipDefaults.IconSize))
+                    Icon(
+                        Icons.Default.Language, contentDescription = null,
+                        modifier = Modifier.size(AssistChipDefaults.IconSize)
+                    )
                 }
             )
         }
-        title.imdbId?.let { imdbId ->
-            AssistChip(
-                onClick = { onOpenUrl("https://www.imdb.com/title/$imdbId") },
-                label = { Text("IMDb") },
-                leadingIcon = {
-                    Icon(Icons.Default.VideoLibrary, contentDescription = null,
-                        modifier = Modifier.size(AssistChipDefaults.IconSize))
+    }
+}
+
+@Composable
+private fun RatingBottomBar(
+    rating: Int?,
+    isUploading: Boolean,
+    uploadError: Boolean,
+    onToggleInList: () -> Unit,
+    onSetRating: (Int) -> Unit
+) {
+    Surface(tonalElevation = 8.dp) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RatingCircleButton(
+                    isActive = rating != null,
+                    onClick = onToggleInList
+                ) {
+                    Icon(
+                        imageVector = if (rating != null) Icons.Filled.Bookmark
+                                      else Icons.Outlined.BookmarkBorder,
+                        contentDescription = if (rating != null) "Remove from wishlist"
+                                             else "Add to wishlist",
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
-            )
+                (1..4).forEach { n ->
+                    RatingCircleButton(
+                        isActive = rating == n,
+                        onClick = { onSetRating(if (rating == n) 0 else n) }
+                    ) {
+                        Text(text = "$n", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+            when {
+                isUploading -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp)
+                    Text(
+                        "Saving…",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                uploadError -> Text(
+                    "Upload failed",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RatingCircleButton(
+    isActive: Boolean,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val bg = if (isActive) MaterialTheme.colorScheme.primary
+             else MaterialTheme.colorScheme.surfaceVariant
+    val fg = if (isActive) MaterialTheme.colorScheme.onPrimary
+             else MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        modifier = Modifier
+            .size(52.dp)
+            .clip(CircleShape)
+            .background(bg)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        CompositionLocalProvider(LocalContentColor provides fg) {
+            content()
         }
     }
 }
@@ -277,73 +364,6 @@ private fun CreditsSection(title: Title) {
                 text = line,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun RatingSection(
-    rating: Int?,
-    isUploading: Boolean,
-    uploadError: Boolean,
-    onToggleInList: () -> Unit,
-    onSetRating: (Int) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            IconButton(onClick = onToggleInList, modifier = Modifier.size(48.dp)) {
-                Icon(
-                    imageVector = if (rating != null) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                    contentDescription = if (rating != null) "Remove from list" else "Add to list",
-                    tint = if (rating != null) MaterialTheme.colorScheme.primary
-                           else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            if (rating != null) {
-                Spacer(Modifier.width(4.dp))
-                (1..4).forEach { star ->
-                    IconButton(
-                        onClick = { onSetRating(if (rating == star) 0 else star) },
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (star <= rating) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                            contentDescription = "$star stars",
-                            tint = if (star <= rating) StarYellow
-                                   else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-            }
-        }
-        when {
-            isUploading -> Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                Text(
-                    "Saving…",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            uploadError -> Text(
-                text = "Upload failed — tap to retry",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.error
             )
         }
     }
