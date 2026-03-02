@@ -60,6 +60,7 @@ class DropboxAuthManager(private val store: TokenStore) {
 
     fun setListPath(path: String) { store[KEY_LIST_PATH] = path }
     fun getListPath(): String? = store[KEY_LIST_PATH]
+    fun clearListPath() { store[KEY_LIST_PATH] = null }
 
     fun clearTokens() {
         store[KEY_ACCESS_TOKEN] = null

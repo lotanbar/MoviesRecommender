@@ -16,4 +16,9 @@ class AnthropicAuthManager(private val store: TokenStore) {
     fun getModelId(): String? = store[KEY_MODEL_ID]
 
     fun isConfigured(): Boolean = store[KEY_API_KEY] != null && store[KEY_MODEL_ID] != null
+
+    fun clearCredentials() {
+        store[KEY_API_KEY] = null
+        store[KEY_MODEL_ID] = null
+    }
 }

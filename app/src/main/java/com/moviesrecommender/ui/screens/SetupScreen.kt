@@ -42,6 +42,7 @@ fun SetupScreen(
     setupViewModel: SetupViewModel = viewModel()
 ) {
     val dropboxAuthenticated by setupViewModel.dropboxAuthenticated.collectAsState()
+    val listPath by setupViewModel.listPath.collectAsState()
     val listPathSet by setupViewModel.listPathSet.collectAsState()
     val tmdbKeySet by setupViewModel.tmdbKeySet.collectAsState()
     val claudeKeySet by setupViewModel.claudeKeySet.collectAsState()
@@ -50,6 +51,9 @@ fun SetupScreen(
     var showListPathDialog by remember { mutableStateOf(false) }
     var showTmdbDialog by remember { mutableStateOf(false) }
     var showClaudeDialog by remember { mutableStateOf(false) }
+
+    var pendingClearLabel by remember { mutableStateOf("") }
+    var pendingClearAction: (() -> Unit)? by remember { mutableStateOf(null) }
 
     val uriHandler = LocalUriHandler.current
 
@@ -102,6 +106,17 @@ fun SetupScreen(
         )
     }
 
+    if (pendingClearAction != null) {
+        ConfirmClearDialog(
+            label = pendingClearLabel,
+            onConfirm = {
+                pendingClearAction?.invoke()
+                pendingClearAction = null
+            },
+            onDismiss = { pendingClearAction = null }
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -125,7 +140,11 @@ fun SetupScreen(
             CheckButton(
                 label = "Authenticate to Dropbox",
                 completed = dropboxAuthenticated,
-                onClick = { uriHandler.openUri(setupViewModel.getDropboxAuthUrl()) }
+                onClick = { uriHandler.openUri(setupViewModel.getDropboxAuthUrl()) },
+                onClear = {
+                    pendingClearLabel = "Dropbox authentication"
+                    pendingClearAction = { setupViewModel.clearDropboxAuth() }
+                }
             )
 
             Spacer(Modifier.height(12.dp))
@@ -134,9 +153,14 @@ fun SetupScreen(
                 label = "Pick list file",
                 completed = listPathSet,
                 enabled = dropboxAuthenticated,
+                subtitle = listPath,
                 onClick = {
                     if (!dropboxAuthenticated) ToastManager.show("Authenticate to Dropbox first.")
                     else showListPathDialog = true
+                },
+                onClear = {
+                    pendingClearLabel = "list file path"
+                    pendingClearAction = { setupViewModel.clearListPath() }
                 }
             )
 
@@ -145,7 +169,11 @@ fun SetupScreen(
             CheckButton(
                 label = "Enter TMDB API key",
                 completed = tmdbKeySet,
-                onClick = { showTmdbDialog = true }
+                onClick = { showTmdbDialog = true },
+                onClear = {
+                    pendingClearLabel = "TMDB API key"
+                    pendingClearAction = { setupViewModel.clearTmdbKey() }
+                }
             )
 
             Spacer(Modifier.height(12.dp))
@@ -153,7 +181,11 @@ fun SetupScreen(
             CheckButton(
                 label = "Enter Claude API key",
                 completed = claudeKeySet,
-                onClick = { showClaudeDialog = true }
+                onClick = { showClaudeDialog = true },
+                onClear = {
+                    pendingClearLabel = "Claude API key"
+                    pendingClearAction = { setupViewModel.clearClaudeKey() }
+                }
             )
         }
 
@@ -164,6 +196,27 @@ fun SetupScreen(
             )
         }
     }
+}
+
+@Composable
+private fun ConfirmClearDialog(
+    label: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Remove $label?") },
+        text = { Text("This will remove the saved $label. You will need to set it up again.") },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Remove", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable

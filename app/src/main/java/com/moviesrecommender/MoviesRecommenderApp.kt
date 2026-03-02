@@ -9,6 +9,8 @@ import com.moviesrecommender.data.remote.dropbox.DropboxAuthManager
 import com.moviesrecommender.data.remote.dropbox.DropboxService
 import com.moviesrecommender.data.remote.dropbox.OkHttpDropboxApiClient
 import com.moviesrecommender.data.remote.dropbox.TokenStore
+import com.moviesrecommender.data.remote.tmdb.OkHttpTmdbApiClient
+import com.moviesrecommender.data.remote.tmdb.TmdbService
 import com.moviesrecommender.util.ToastManager
 
 class MoviesRecommenderApp : Application() {
@@ -23,6 +25,10 @@ class MoviesRecommenderApp : Application() {
 
     val anthropicService: AnthropicService by lazy {
         AnthropicService(AnthropicAuthManager(tokenStore), OkHttpAnthropicApiClient())
+    }
+
+    val tmdbService: TmdbService by lazy {
+        TmdbService(tokenStore, OkHttpTmdbApiClient())
     }
 
     companion object {

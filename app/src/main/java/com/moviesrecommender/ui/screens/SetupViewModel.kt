@@ -7,6 +7,8 @@ import com.moviesrecommender.MoviesRecommenderApp
 import com.moviesrecommender.data.remote.anthropic.AnthropicError
 import com.moviesrecommender.data.remote.anthropic.AnthropicResult
 import com.moviesrecommender.data.remote.dropbox.DropboxResult
+import com.moviesrecommender.data.remote.tmdb.TmdbError
+import com.moviesrecommender.data.remote.tmdb.TmdbResult
 import com.moviesrecommender.util.ToastManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,15 +19,18 @@ class SetupViewModel : ViewModel() {
     private val app = MoviesRecommenderApp.instance
     private val dropboxService = app.dropboxService
     private val anthropicService = app.anthropicService
-    private val tokenStore = app.tokenStore
+    private val tmdbService = app.tmdbService
 
     private val _dropboxAuthenticated = MutableStateFlow(dropboxService.isAuthenticated())
     val dropboxAuthenticated = _dropboxAuthenticated.asStateFlow()
 
+    private val _listPath = MutableStateFlow(dropboxService.authManager.getListPath())
+    val listPath = _listPath.asStateFlow()
+
     private val _listPathSet = MutableStateFlow(dropboxService.authManager.getListPath() != null)
     val listPathSet = _listPathSet.asStateFlow()
 
-    private val _tmdbKeySet = MutableStateFlow(tokenStore[KEY_TMDB] != null)
+    private val _tmdbKeySet = MutableStateFlow(tmdbService.isConfigured())
     val tmdbKeySet = _tmdbKeySet.asStateFlow()
 
     private val _claudeKeySet = MutableStateFlow(anthropicService.isConfigured())
@@ -49,12 +54,28 @@ class SetupViewModel : ViewModel() {
 
     fun saveListPath(path: String) {
         dropboxService.authManager.setListPath(path.trim())
+        _listPath.value = path.trim().ifBlank { null }
         _listPathSet.value = path.isNotBlank()
     }
 
     fun saveTmdbKey(key: String) {
-        tokenStore[KEY_TMDB] = key.trim()
-        _tmdbKeySet.value = key.isNotBlank()
+        viewModelScope.launch {
+            _isLoading.value = true
+            when (val result = tmdbService.saveApiKeyAndValidate(key.trim())) {
+                is TmdbResult.Success -> {
+                    _tmdbKeySet.value = true
+                    ToastManager.show("TMDB API key verified.")
+                }
+                is TmdbResult.Failure -> ToastManager.show(
+                    when (result.error) {
+                        TmdbError.InvalidApiKey -> "Invalid TMDB API key."
+                        TmdbError.NoInternet -> "No internet connection."
+                        is TmdbError.ApiError -> "TMDB request failed. Please try again."
+                    }
+                )
+            }
+            _isLoading.value = false
+        }
     }
 
     fun saveClaudeKey(key: String) {
@@ -78,7 +99,27 @@ class SetupViewModel : ViewModel() {
         }
     }
 
-    companion object {
-        const val KEY_TMDB = "tmdb_api_key"
+    fun clearDropboxAuth() {
+        dropboxService.authManager.clearTokens()
+        dropboxService.authManager.clearListPath()
+        _dropboxAuthenticated.value = false
+        _listPath.value = null
+        _listPathSet.value = false
+    }
+
+    fun clearListPath() {
+        dropboxService.authManager.clearListPath()
+        _listPath.value = null
+        _listPathSet.value = false
+    }
+
+    fun clearTmdbKey() {
+        tmdbService.clearApiKey()
+        _tmdbKeySet.value = false
+    }
+
+    fun clearClaudeKey() {
+        anthropicService.authManager.clearCredentials()
+        _claudeKeySet.value = false
     }
 }

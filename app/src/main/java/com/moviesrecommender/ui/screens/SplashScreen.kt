@@ -12,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import com.moviesrecommender.MoviesRecommenderApp
 import com.moviesrecommender.navigation.Screen
-import com.moviesrecommender.ui.screens.SetupViewModel.Companion.KEY_TMDB
 
 @Composable
 fun SplashScreen(navController: NavHostController) {
@@ -20,7 +19,7 @@ fun SplashScreen(navController: NavHostController) {
         val app = MoviesRecommenderApp.instance
         val allConfigured = app.dropboxService.isAuthenticated() &&
             app.dropboxService.authManager.getListPath() != null &&
-            app.tokenStore[KEY_TMDB] != null &&
+            app.tmdbService.isConfigured() &&
             app.anthropicService.isConfigured()
 
         val target = if (allConfigured) Screen.Actions.route else Screen.Setup.route
