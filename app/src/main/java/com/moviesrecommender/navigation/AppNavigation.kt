@@ -2,8 +2,10 @@ package com.moviesrecommender.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.moviesrecommender.AppViewModel
 import com.moviesrecommender.ui.screens.ActionsScreen
 import com.moviesrecommender.ui.screens.PreviewScreen
@@ -33,8 +35,16 @@ fun AppNavigation(navController: NavHostController, appViewModel: AppViewModel) 
         composable(Screen.Wishlist.route) {
             WishlistScreen(navController)
         }
-        composable(Screen.Preview.route) {
-            PreviewScreen(navController)
+        composable(
+            route = Screen.Preview.route,
+            arguments = listOf(
+                navArgument("tmdbId") { type = NavType.IntType },
+                navArgument("mediaType") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val tmdbId = backStackEntry.arguments?.getInt("tmdbId") ?: 0
+            val mediaType = backStackEntry.arguments?.getString("mediaType") ?: "MOVIE"
+            PreviewScreen(navController, tmdbId, mediaType)
         }
     }
 }

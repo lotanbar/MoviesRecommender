@@ -11,7 +11,11 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 
 @Composable
-fun PreviewScreen(navController: NavHostController) {
+fun PreviewScreen(
+    navController: NavHostController,
+    tmdbId: Int,
+    mediaType: String
+) {
     // TODO (Commit 8/9/10): poster, rating bar, icon row, credits, description
     Box(
         modifier = Modifier

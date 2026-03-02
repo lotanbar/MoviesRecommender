@@ -1,27 +1,119 @@
 package com.moviesrecommender.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.moviesrecommender.navigation.Screen
+import com.moviesrecommender.ui.components.TitleRow
 
 @Composable
-fun SearchScreen(navController: NavHostController) {
-    // TODO (Commit 7): search bar, live TMDB results, TitleRow list
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "Search Screen",
-            style = MaterialTheme.typography.headlineMedium
-        )
+fun SearchScreen(
+    navController: NavHostController,
+    viewModel: SearchViewModel = viewModel()
+) {
+    val query by viewModel.query.collectAsState()
+    val results by viewModel.results.collectAsState()
+    val isSearching by viewModel.isSearching.collectAsState()
+
+    Scaffold(
+        modifier = Modifier.imePadding(),
+        bottomBar = {
+            Surface(tonalElevation = 8.dp) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = viewModel::onQueryChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    placeholder = { Text("Search movies & TV shows…") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.onQueryChange("") }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear")
+                            }
+                        }
+                    }
+                )
+            }
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            when {
+                isSearching -> {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                }
+                results.isNotEmpty() -> {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(results, key = { it.title.id }) { item ->
+                            TitleRow(
+                                title = item.title,
+                                rating = item.rating,
+                                onClick = {
+                                    navController.navigate(
+                                        Screen.Preview.createRoute(
+                                            item.title.id,
+                                            item.title.mediaType.name
+                                        )
+                                    )
+                                }
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        }
+                    }
+                }
+                query.length >= 2 -> {
+                    Text(
+                        text = "No results for \"$query\"",
+                        modifier = Modifier.align(Alignment.Center),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                else -> {
+                    Text(
+                        text = "Type to search…",
+                        modifier = Modifier.align(Alignment.Center),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
     }
 }
