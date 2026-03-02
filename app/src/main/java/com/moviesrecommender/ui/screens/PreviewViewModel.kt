@@ -20,6 +20,8 @@ sealed class PreviewUiState {
     data class Loaded(
         val title: Title,
         val rating: Int?,
+        val wikipediaUrl: String? = null,
+        val wikipediaReady: Boolean = false,
         val isUploading: Boolean = false,
         val uploadError: Boolean = false
     ) : PreviewUiState()
@@ -34,6 +36,7 @@ class PreviewViewModel(
     private val app = MoviesRecommenderApp.instance
     private val tmdbService = app.tmdbService
     private val dropboxService = app.dropboxService
+    private val wikidataApiClient = app.wikidataApiClient
     private val mediaType = if (mediaTypeStr == "TV") MediaType.TV else MediaType.MOVIE
 
     private var listContent: String? = null
@@ -57,6 +60,12 @@ class PreviewViewModel(
                     title = t,
                     rating = listContent?.let { SearchViewModel.parseRating(it, t.title) }
                 )
+                // Fetch Wikipedia URL in background; update state when ready
+                launch {
+                    val url = wikidataApiClient.getWikipediaUrl(tmdbId, mediaType == MediaType.MOVIE)
+                    val current = _uiState.value as? PreviewUiState.Loaded ?: return@launch
+                    _uiState.value = current.copy(wikipediaUrl = url, wikipediaReady = true)
+                }
             }
             is TmdbResult.Failure -> _uiState.value = PreviewUiState.Error("Failed to load title")
         }

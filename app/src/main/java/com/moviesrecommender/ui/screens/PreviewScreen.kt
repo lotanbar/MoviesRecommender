@@ -1,5 +1,7 @@
 package com.moviesrecommender.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -19,15 +21,20 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -90,6 +97,9 @@ private fun LoadedContent(
     modifier: Modifier = Modifier
 ) {
     val title = state.title
+    val context = LocalContext.current
+    fun openUrl(url: String) = context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+
     LazyColumn(modifier = modifier) {
         item {
             Box(
@@ -128,6 +138,14 @@ private fun LoadedContent(
                 MediaTypePill(title.mediaType)
             }
         }
+        item {
+            IconRow(
+                title = title,
+                wikipediaUrl = state.wikipediaUrl,
+                wikipediaReady = state.wikipediaReady,
+                onOpenUrl = ::openUrl
+            )
+        }
         if (title.genres.isNotEmpty()) {
             item {
                 Row(
@@ -162,6 +180,62 @@ private fun LoadedContent(
                 uploadError = state.uploadError,
                 onToggleInList = onToggleInList,
                 onSetRating = onSetRating
+            )
+        }
+    }
+}
+
+@Composable
+private fun IconRow(
+    title: Title,
+    wikipediaUrl: String?,
+    wikipediaReady: Boolean,
+    onOpenUrl: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        val query = Uri.encode("${title.title} ${title.year} trailer")
+        AssistChip(
+            onClick = { onOpenUrl("https://www.youtube.com/results?search_query=$query") },
+            label = { Text("Trailer") },
+            leadingIcon = {
+                Icon(Icons.Default.PlayArrow, contentDescription = null,
+                    modifier = Modifier.size(AssistChipDefaults.IconSize))
+            }
+        )
+        when {
+            !wikipediaReady -> AssistChip(
+                onClick = {},
+                enabled = false,
+                label = { Text("Wikipedia") },
+                leadingIcon = {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(AssistChipDefaults.IconSize),
+                        strokeWidth = 2.dp
+                    )
+                }
+            )
+            wikipediaUrl != null -> AssistChip(
+                onClick = { onOpenUrl(wikipediaUrl) },
+                label = { Text("Wikipedia") },
+                leadingIcon = {
+                    Icon(Icons.Default.Language, contentDescription = null,
+                        modifier = Modifier.size(AssistChipDefaults.IconSize))
+                }
+            )
+        }
+        title.imdbId?.let { imdbId ->
+            AssistChip(
+                onClick = { onOpenUrl("https://www.imdb.com/title/$imdbId") },
+                label = { Text("IMDb") },
+                leadingIcon = {
+                    Icon(Icons.Default.VideoLibrary, contentDescription = null,
+                        modifier = Modifier.size(AssistChipDefaults.IconSize))
+                }
             )
         }
     }

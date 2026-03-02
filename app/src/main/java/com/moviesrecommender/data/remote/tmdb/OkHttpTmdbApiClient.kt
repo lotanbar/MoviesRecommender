@@ -113,7 +113,8 @@ class OkHttpTmdbApiClient(
                 director = director,
                 leadActors = leadActors,
                 productionCompany = productionCompany,
-                mediaType = mediaType
+                mediaType = mediaType,
+                imdbId = obj.optString("imdb_id").takeIf { it.isNotEmpty() }
             )
         }
 
