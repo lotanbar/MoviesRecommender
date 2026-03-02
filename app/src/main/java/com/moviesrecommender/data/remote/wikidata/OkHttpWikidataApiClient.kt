@@ -52,37 +52,68 @@ class OkHttpWikidataApiClient(
             }
         }
 
-    suspend fun getWikipediaUrl(tmdbId: Int, isMovie: Boolean): String? =
+    suspend fun getWikipediaUrl(tmdbId: Int, isMovie: Boolean, titleFallback: String? = null): String? =
         withContext(Dispatchers.IO) {
-            val property = if (isMovie) "P4947" else "P4983"
-            val query = """
-                SELECT ?article WHERE {
-                  ?item wdt:$property "$tmdbId" .
-                  ?article schema:about ?item ;
-                           schema:inLanguage "en" ;
-                           schema:isPartOf <https://en.wikipedia.org/> .
-                }
-                LIMIT 1
-            """.trimIndent()
-            val encoded = URLEncoder.encode(query, "UTF-8")
-            val url = "https://query.wikidata.org/sparql?query=$encoded&format=json"
-            try {
-                val request = Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "MoviesRecommenderApp/1.0 (Android)")
-                    .header("Accept", "application/sparql-results+json")
-                    .get()
-                    .build()
-                val response = httpClient.newCall(request).execute()
-                val body = response.body?.string() ?: return@withContext null
-                if (!response.isSuccessful) return@withContext null
-                val bindings = JSONObject(body)
-                    .getJSONObject("results")
-                    .getJSONArray("bindings")
-                if (bindings.length() == 0) null
-                else bindings.getJSONObject(0).getJSONObject("article").getString("value")
-            } catch (e: Exception) {
-                null
-            }
+            // Primary: resolve via Wikidata SPARQL using TMDB ID
+            val wikidataUrl = fetchWikipediaUrlFromWikidata(tmdbId, isMovie)
+            if (wikidataUrl != null) return@withContext wikidataUrl
+
+            // Fallback: ask Wikipedia's REST summary API directly by title
+            if (titleFallback != null) fetchWikipediaUrlByTitle(titleFallback) else null
         }
+
+    private fun fetchWikipediaUrlFromWikidata(tmdbId: Int, isMovie: Boolean): String? {
+        val property = if (isMovie) "P4947" else "P4983"
+        val query = """
+            SELECT ?article WHERE {
+              ?item wdt:$property "$tmdbId" .
+              ?article schema:about ?item ;
+                       schema:inLanguage "en" ;
+                       schema:isPartOf <https://en.wikipedia.org/> .
+            }
+            LIMIT 1
+        """.trimIndent()
+        val encoded = URLEncoder.encode(query, "UTF-8")
+        val url = "https://query.wikidata.org/sparql?query=$encoded&format=json"
+        return try {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "MoviesRecommenderApp/1.0 (Android)")
+                .header("Accept", "application/sparql-results+json")
+                .get()
+                .build()
+            val response = httpClient.newCall(request).execute()
+            val body = response.body?.string() ?: return null
+            if (!response.isSuccessful) return null
+            val bindings = JSONObject(body)
+                .getJSONObject("results")
+                .getJSONArray("bindings")
+            if (bindings.length() == 0) null
+            else bindings.getJSONObject(0).getJSONObject("article").getString("value")
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun fetchWikipediaUrlByTitle(title: String): String? {
+        val encoded = URLEncoder.encode(title, "UTF-8")
+        val url = "https://en.wikipedia.org/api/rest_v1/page/summary/$encoded"
+        return try {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "MoviesRecommenderApp/1.0 (Android)")
+                .get()
+                .build()
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) return null
+            val body = response.body?.string() ?: return null
+            JSONObject(body)
+                .optJSONObject("content_urls")
+                ?.optJSONObject("desktop")
+                ?.optString("page")
+                ?.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            null
+        }
+    }
 }

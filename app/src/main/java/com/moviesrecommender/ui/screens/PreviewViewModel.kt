@@ -64,7 +64,7 @@ class PreviewViewModel(
                 )
                 // Fetch Wikipedia URL and awards from Wikidata in background
                 launch {
-                    val url = wikidataApiClient.getWikipediaUrl(tmdbId, mediaType == MediaType.MOVIE)
+                    val url = wikidataApiClient.getWikipediaUrl(tmdbId, mediaType == MediaType.MOVIE, t.title)
                     val current = _uiState.value as? PreviewUiState.Loaded ?: return@launch
                     _uiState.value = current.copy(wikipediaUrl = url, wikipediaReady = true)
                 }

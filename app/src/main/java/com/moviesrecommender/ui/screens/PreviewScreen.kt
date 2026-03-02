@@ -2,32 +2,30 @@ package com.moviesrecommender.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -37,19 +35,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.moviesrecommender.R
 import com.moviesrecommender.data.remote.tmdb.MediaType
-import com.moviesrecommender.data.remote.tmdb.Title
 
 @Composable
 fun PreviewScreen(
@@ -103,6 +107,7 @@ fun PreviewScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LoadedContent(
     state: PreviewUiState.Loaded,
@@ -112,23 +117,21 @@ private fun LoadedContent(
     val context = LocalContext.current
     fun openUrl(url: String) = context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 
+    var awardsExpanded by remember { mutableStateOf(false) }
+    var detailsExpanded by remember { mutableStateOf(false) }
+
     LazyColumn(modifier = modifier) {
         item {
-            BoxWithConstraints(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                AsyncImage(
-                    model = title.posterUrl(500),
-                    contentDescription = title.title,
-                    contentScale = ContentScale.FillWidth,
-                    modifier = Modifier
-                        .width(maxWidth * 0.8f)
-                        .padding(top = 16.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                )
-            }
+            AsyncImage(
+                model = title.posterUrl(500),
+                contentDescription = title.title,
+                contentScale = ContentScale.FillWidth,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 16.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            )
         }
         item {
             Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 2.dp)) {
@@ -139,6 +142,7 @@ private fun LoadedContent(
                     Text(
                         text = title.title,
                         style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
                     )
                     Text(
@@ -151,60 +155,213 @@ private fun LoadedContent(
             }
         }
         item {
-            // Icons + genre chips in one scrollable row, tight under the title
-            Row(
-                modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(start = 4.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                val query = Uri.encode("${title.title} ${title.year}")
-                IconButton(onClick = { openUrl("https://www.youtube.com/results?search_query=$query") }) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_youtube),
-                        contentDescription = "YouTube",
-                        tint = androidx.compose.ui.graphics.Color.Unspecified,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-                when {
-                    !state.wikipediaReady -> Box(
-                        modifier = Modifier.size(48.dp),
-                        contentAlignment = Alignment.Center
+            Column {
+                // Four equal-width action buttons
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // YouTube
+                    val query = Uri.encode("${title.title} ${title.year}")
+                    ActionButton(
+                        modifier = Modifier.weight(1f),
+                        label = "YouTube",
+                        onClick = { openUrl("https://www.youtube.com/results?search_query=$query") }
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    }
-                    state.wikipediaUrl != null -> IconButton(onClick = { openUrl(state.wikipediaUrl) }) {
                         Icon(
-                            Icons.Default.Language,
-                            contentDescription = "Wikipedia",
-                            modifier = Modifier.size(28.dp)
+                            painter = painterResource(R.drawable.ic_youtube),
+                            contentDescription = null,
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+
+                    // Wikipedia
+                    ActionButton(
+                        modifier = Modifier.weight(1f),
+                        label = "Wikipedia",
+                        onClick = { state.wikipediaUrl?.let { openUrl(it) } },
+                        enabled = state.wikipediaReady && state.wikipediaUrl != null
+                    ) {
+                        if (!state.wikipediaReady) {
+                            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_wikipedia),
+                                contentDescription = null,
+                                tint = Color.Unspecified,
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .alpha(if (state.wikipediaUrl != null) 1f else 0.35f)
+                            )
+                        }
+                    }
+
+                    // Awards (Oscar / Emmy)
+                    ActionButton(
+                        modifier = Modifier.weight(1f),
+                        label = if (!state.awardsReady) "Awards"
+                                else if (state.awards.isEmpty()) "No wins"
+                                else "${state.awards.size} win${if (state.awards.size == 1) "" else "s"}",
+                        onClick = { if (state.awardsReady && state.awards.isNotEmpty()) awardsExpanded = !awardsExpanded },
+                        enabled = state.awardsReady && state.awards.isNotEmpty(),
+                        isActive = awardsExpanded
+                    ) {
+                        if (!state.awardsReady) {
+                            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(
+                                painter = painterResource(
+                                    if (title.mediaType == MediaType.MOVIE) R.drawable.ic_oscar
+                                    else R.drawable.ic_emmy
+                                ),
+                                contentDescription = null,
+                                tint = Color.Unspecified,
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .alpha(if (state.awards.isNotEmpty()) 1f else 0.35f)
+                            )
+                        }
+                    }
+
+                    // Details (genres + country + crew + description)
+                    ActionButton(
+                        modifier = Modifier.weight(1f),
+                        label = "Details",
+                        onClick = { detailsExpanded = !detailsExpanded },
+                        isActive = detailsExpanded
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            modifier = Modifier.size(30.dp)
                         )
                     }
                 }
-                title.genres.forEach { genre ->
-                    AssistChip(onClick = {}, label = { Text(genre) })
+
+                // Expandable: awards list
+                AnimatedVisibility(visible = awardsExpanded && state.awardsReady && state.awards.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        state.awards.forEach { award ->
+                            Text(
+                                text = "· $award",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                // Expandable: details panel
+                AnimatedVisibility(visible = detailsExpanded) {
+                    Column(
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Country flag + name
+                        if (title.country != null) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(text = countryCodeToFlag(title.country), fontSize = 32.sp)
+                                Text(
+                                    text = countryCodeToName(title.country),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                        // Genres
+                        if (title.genres.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                title.genres.forEach { genre ->
+                                    AssistChip(onClick = {}, label = {
+                                        Text(genre, style = MaterialTheme.typography.bodyMedium)
+                                    })
+                                }
+                            }
+                        }
+                        // Crew
+                        title.director?.let {
+                            Text(
+                                text = "Director: $it",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White
+                            )
+                        }
+                        if (title.leadActors.isNotEmpty()) {
+                            Text(
+                                text = "Starring: ${title.leadActors.joinToString(", ")}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White
+                            )
+                        }
+                        title.productionCompany?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                        }
+                        // Description
+                        title.overview?.takeIf { it.isNotBlank() }?.let { overview ->
+                            Text(
+                                text = overview,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White
+                            )
+                        }
+                    }
                 }
             }
         }
-        title.overview?.takeIf { it.isNotBlank() }?.let { overview ->
-            item {
-                Text(
-                    text = overview,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-            }
+    }
+}
+
+@Composable
+private fun ActionButton(
+    modifier: Modifier = Modifier,
+    label: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    isActive: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    val bg = if (isActive) MaterialTheme.colorScheme.primaryContainer
+             else MaterialTheme.colorScheme.surfaceVariant
+    val contentColor = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
+                       else if (!enabled) Color.White.copy(alpha = 0.35f)
+                       else Color.White
+
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg)
+            .clickable(enabled = enabled || isActive, onClick = onClick)
+            .padding(vertical = 14.dp, horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        CompositionLocalProvider(LocalContentColor provides contentColor) {
+            content()
         }
-        item {
-            CreditsSection(title)
-        }
-        if (state.awardsReady && state.awards.isNotEmpty()) {
-            item {
-                AwardsSection(state.awards)
-            }
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = contentColor,
+            maxLines = 1
+        )
     }
 }
 
@@ -221,29 +378,6 @@ private fun MediaTypePill(mediaType: MediaType) {
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSecondaryContainer
         )
-    }
-}
-
-@Composable
-private fun AwardsSection(awards: List<String>) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(
-            text = "Awards",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        awards.forEach { award ->
-            Text(
-                text = "· $award",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
     }
 }
 
@@ -336,28 +470,12 @@ private fun RatingCircleButton(
     }
 }
 
-
-@Composable
-private fun CreditsSection(title: Title) {
-    val lines = buildList {
-        title.director?.let { add("Director: $it") }
-        if (title.leadActors.isNotEmpty()) add("Starring: ${title.leadActors.joinToString(", ")}")
-        val meta = listOfNotNull(title.country, title.productionCompany).joinToString(" · ")
-        if (meta.isNotBlank()) add(meta)
-    }
-    if (lines.isEmpty()) return
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        lines.forEach { line ->
-            Text(
-                text = line,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+private fun countryCodeToFlag(code: String): String {
+    if (code.length != 2) return ""
+    val base = 0x1F1E6 - 'A'.code
+    return String(Character.toChars(base + code[0].uppercaseChar().code)) +
+           String(Character.toChars(base + code[1].uppercaseChar().code))
 }
+
+private fun countryCodeToName(code: String): String =
+    java.util.Locale("", code).displayCountry.takeIf { it.isNotBlank() } ?: code
