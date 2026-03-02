@@ -7,8 +7,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 import java.io.IOException
+import org.json.JSONObject
 import java.net.UnknownHostException
 
 class OkHttpDropboxApiClient(
@@ -21,7 +21,7 @@ class OkHttpDropboxApiClient(
 
     override suspend fun download(path: String, accessToken: String): String =
         withContext(Dispatchers.IO) {
-            val arg = JSONObject().put("path", path).toString()
+            val arg = """{"path":"${path.toAsciiJson()}"}"""
             val request = Request.Builder()
                 .url("https://content.dropboxapi.com/2/files/download")
                 .addHeader("Authorization", "Bearer $accessToken")
@@ -33,11 +33,7 @@ class OkHttpDropboxApiClient(
 
     override suspend fun listEntries(path: String, accessToken: String): DropboxEntries =
         withContext(Dispatchers.IO) {
-            val body = JSONObject()
-                .put("path", path)
-                .put("recursive", false)
-                .put("include_non_downloadable_files", false)
-                .toString()
+            val body = """{"path":"${path.toAsciiJson()}","recursive":false,"include_non_downloadable_files":false}"""
             val request = Request.Builder()
                 .url("https://api.dropboxapi.com/2/files/list_folder")
                 .addHeader("Authorization", "Bearer $accessToken")
@@ -57,11 +53,7 @@ class OkHttpDropboxApiClient(
 
     override suspend fun upload(path: String, content: String, accessToken: String) =
         withContext(Dispatchers.IO) {
-            val arg = JSONObject()
-                .put("path", path)
-                .put("mode", "overwrite")
-                .put("autorename", false)
-                .toString()
+            val arg = """{"path":"${path.toAsciiJson()}","mode":"overwrite","autorename":false}"""
             val request = Request.Builder()
                 .url("https://content.dropboxapi.com/2/files/upload")
                 .addHeader("Authorization", "Bearer $accessToken")
@@ -100,6 +92,17 @@ class OkHttpDropboxApiClient(
                 .build()
             JSONObject(execute(request)).getString("access_token")
         }
+
+    private fun String.toAsciiJson(): String = buildString {
+        for (ch in this@toAsciiJson) {
+            when {
+                ch == '"'  -> append("\\\"")
+                ch == '\\' -> append("\\\\")
+                ch.code > 127 -> append("\\u%04x".format(ch.code))
+                else -> append(ch)
+            }
+        }
+    }
 
     private fun execute(request: Request): String {
         return try {
