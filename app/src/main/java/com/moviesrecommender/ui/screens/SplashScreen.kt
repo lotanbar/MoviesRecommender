@@ -10,15 +10,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import com.moviesrecommender.MoviesRecommenderApp
 import com.moviesrecommender.navigation.Screen
-import kotlinx.coroutines.delay
+import com.moviesrecommender.ui.screens.SetupViewModel.Companion.KEY_TMDB
 
 @Composable
 fun SplashScreen(navController: NavHostController) {
-    // TODO (Commit 5): run launch checks; route to Setup or Actions accordingly
     LaunchedEffect(Unit) {
-        delay(500)
-        navController.navigate(Screen.Setup.route) {
+        val app = MoviesRecommenderApp.instance
+        val allConfigured = app.dropboxService.isAuthenticated() &&
+            app.dropboxService.authManager.getListPath() != null &&
+            app.tokenStore[KEY_TMDB] != null &&
+            app.anthropicService.isConfigured()
+
+        val target = if (allConfigured) Screen.Actions.route else Screen.Setup.route
+        navController.navigate(target) {
             popUpTo(Screen.Splash.route) { inclusive = true }
         }
     }
@@ -31,7 +37,8 @@ fun SplashScreen(navController: NavHostController) {
     ) {
         Text(
             text = "Movies Recommender",
-            style = MaterialTheme.typography.headlineLarge
+            style = MaterialTheme.typography.headlineLarge,
+            color = MaterialTheme.colorScheme.onBackground
         )
     }
 }

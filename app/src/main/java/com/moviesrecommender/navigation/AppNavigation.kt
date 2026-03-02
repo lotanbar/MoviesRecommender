@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.moviesrecommender.AppViewModel
 import com.moviesrecommender.ui.screens.ActionsScreen
 import com.moviesrecommender.ui.screens.PreviewScreen
 import com.moviesrecommender.ui.screens.SearchScreen
@@ -12,7 +13,7 @@ import com.moviesrecommender.ui.screens.SplashScreen
 import com.moviesrecommender.ui.screens.WishlistScreen
 
 @Composable
-fun AppNavigation(navController: NavHostController) {
+fun AppNavigation(navController: NavHostController, appViewModel: AppViewModel) {
     NavHost(
         navController = navController,
         startDestination = Screen.Splash.route
@@ -21,7 +22,7 @@ fun AppNavigation(navController: NavHostController) {
             SplashScreen(navController)
         }
         composable(Screen.Setup.route) {
-            SetupScreen(navController)
+            SetupScreen(navController, appViewModel)
         }
         composable(Screen.Actions.route) {
             ActionsScreen(navController)
