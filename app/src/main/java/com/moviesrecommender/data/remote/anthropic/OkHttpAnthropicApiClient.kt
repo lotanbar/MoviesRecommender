@@ -15,12 +15,15 @@ import java.util.concurrent.TimeUnit
 class OkHttpAnthropicApiClient(
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)  // Extended thinking can take a while
+        .readTimeout(120, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 ) : AnthropicApiClient {
 
     private val json = "application/json".toMediaType()
+
+    // TODO: revert to stored modelId for production (remove this override)
+    private val debugModel = "claude-haiku-4-5-20251001"
 
     override suspend fun fetchModels(apiKey: String): List<ModelInfo> =
         withContext(Dispatchers.IO) {
@@ -47,12 +50,8 @@ class OkHttpAnthropicApiClient(
         prompt: String
     ): String = withContext(Dispatchers.IO) {
         val bodyJson = JSONObject().apply {
-            put("model", modelId)
-            put("max_tokens", 16000)
-            put("thinking", JSONObject().apply {
-                put("type", "enabled")
-                put("budget_tokens", 10000)
-            })
+            put("model", debugModel)  // TODO: revert to modelId
+            put("max_tokens", 1024)
             put("messages", org.json.JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "user")
@@ -65,7 +64,6 @@ class OkHttpAnthropicApiClient(
             .url("https://api.anthropic.com/v1/messages")
             .addHeader("x-api-key", apiKey)
             .addHeader("anthropic-version", "2023-06-01")
-            .addHeader("anthropic-beta", "interleaved-thinking-2025-05-14")
             .post(bodyJson.toRequestBody(json))
             .build()
 

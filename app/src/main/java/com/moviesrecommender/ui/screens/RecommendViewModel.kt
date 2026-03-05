@@ -7,6 +7,7 @@ import com.moviesrecommender.data.remote.anthropic.AnthropicError
 import com.moviesrecommender.data.remote.anthropic.AnthropicResult
 import com.moviesrecommender.data.remote.dropbox.DropboxError
 import com.moviesrecommender.data.remote.dropbox.DropboxResult
+import com.moviesrecommender.data.remote.tmdb.TmdbError
 import com.moviesrecommender.data.remote.tmdb.TmdbResult
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,7 +42,6 @@ class RecommendViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.value = RecommendUiState.Loading
 
-            // Use cached list from previous step; download only if not available
             val listContent = app.cachedListContent
                 ?: when (val r = app.dropboxService.downloadList()) {
                     is DropboxResult.Success -> r.value.also { app.cachedListContent = it }
@@ -51,7 +51,7 @@ class RecommendViewModel : ViewModel() {
                     }
                 }
 
-            // Build initial prompt and retry up to 5 times on bad format
+            // Retry loop: up to 5 attempts covering bad format AND TMDB not-found
             var prompt = "$listContent\n\nrecommend"
             for (attempt in 0 until 5) {
                 val result = app.anthropicService.sendRawMessage(prompt)
@@ -74,8 +74,17 @@ class RecommendViewModel : ViewModel() {
                         return@launch
                     }
                     is TmdbResult.Failure -> {
-                        _uiState.value = RecommendUiState.Error("Search unavailable: Could not reach TMDB.")
-                        return@launch
+                        when (tmdbResult.error) {
+                            TmdbError.NotFound -> {
+                                // Ask Claude for a different title
+                                prompt = "$listContent\n\nrecommend\n\n$response\n\n\"${parsed.first}\" was not found on TMDB. Please suggest a different title."
+                                continue
+                            }
+                            else -> {
+                                _uiState.value = RecommendUiState.Error(tmdbResult.error.toMessage())
+                                return@launch
+                            }
+                        }
                     }
                 }
             }
@@ -84,7 +93,6 @@ class RecommendViewModel : ViewModel() {
         }
     }
 
-    /** Called when the screen resumes — re-runs recommend if returning from Preview. */
     fun onScreenResumed() {
         if (hasNavigatedToPreview) {
             hasNavigatedToPreview = false
@@ -109,7 +117,7 @@ private fun AnthropicError.toMessage(): String = when (this) {
     AnthropicError.ModelNotSelected -> "Claude model not selected. Please go to Setup."
     AnthropicError.InvalidApiKey -> "Invalid Claude API key. Please go to Setup."
     AnthropicError.NoInternet -> "Claude request failed: No internet connection."
-    AnthropicError.NoSonnetModelFound -> "No Claude Sonnet model found. Please go to Setup."
+    AnthropicError.NoSonnetModelFound -> "No Claude model found. Please go to Setup."
     is AnthropicError.ApiError -> "Claude request failed: $message"
 }
 
@@ -119,4 +127,11 @@ private fun DropboxError.toMessage(): String = when (this) {
     DropboxError.StorageFull -> "Dropbox storage is full."
     DropboxError.RateLimit -> "Too many requests. Try again shortly."
     is DropboxError.Unknown -> "Download failed: $message"
+}
+
+private fun TmdbError.toMessage(): String = when (this) {
+    TmdbError.NoInternet -> "Search unavailable: No internet connection."
+    TmdbError.InvalidApiKey -> "Invalid TMDB API key. Please go to Setup."
+    TmdbError.NotFound -> "Title not found on TMDB."
+    is TmdbError.ApiError -> "TMDB error: $message"
 }
