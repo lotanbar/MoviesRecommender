@@ -21,7 +21,7 @@ class OkHttpWikidataApiClient(
                   ?award rdfs:label ?awardLabel .
                   FILTER(LANG(?awardLabel) = "en")
                 }
-                LIMIT 15
+                LIMIT 50
             """.trimIndent()
             val encoded = URLEncoder.encode(query, "UTF-8")
             val url = "https://query.wikidata.org/sparql?query=$encoded&format=json"
@@ -43,8 +43,8 @@ class OkHttpWikidataApiClient(
                         bindings.getJSONObject(i)
                             .optJSONObject("awardLabel")
                             ?.optString("value")
-                            ?.takeIf { it.isNotBlank() }
-                            ?.let { add(it) }
+                            ?.takeIf { it.isNotBlank() && isNotableAward(it) }
+                            ?.let { if (!contains(it)) add(it) }
                     }
                 }
             } catch (e: Exception) {
@@ -61,6 +61,20 @@ class OkHttpWikidataApiClient(
             // Fallback: ask Wikipedia's REST summary API directly by title
             if (titleFallback != null) fetchWikipediaUrlByTitle(titleFallback) else null
         }
+
+    private fun isNotableAward(label: String): Boolean {
+        val l = label.lowercase()
+        return "academy award" in l || "oscar" in l ||
+               "emmy" in l ||
+               "bafta" in l ||
+               "golden globe" in l ||
+               "annie award" in l ||
+               "peabody" in l ||
+               "writers guild" in l ||
+               "hugo award" in l ||
+               "palme d'or" in l || "palme d\u2019or" in l ||
+               "golden lion" in l
+    }
 
     private fun fetchWikipediaUrlFromWikidata(tmdbId: Int, isMovie: Boolean): String? {
         val property = if (isMovie) "P4947" else "P4983"
