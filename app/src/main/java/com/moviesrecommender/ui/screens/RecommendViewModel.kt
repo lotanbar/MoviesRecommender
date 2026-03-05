@@ -106,7 +106,8 @@ class RecommendViewModel : ViewModel() {
          */
         fun parseTitleYear(response: String): Pair<String, Int>? {
             for (line in response.trim().lines().asReversed()) {
-                val match = LINE_REGEX.matchEntire(line.trim()) ?: continue
+                val clean = line.trim().replace(Regex("""[*_]+"""), "")
+                val match = LINE_REGEX.matchEntire(clean) ?: continue
                 val title = match.groupValues[1].trim()
                 val year = match.groupValues[2].toIntOrNull() ?: continue
                 return Pair(title, year)
