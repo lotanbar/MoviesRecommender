@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -33,10 +34,12 @@ fun ActionsScreen(navController: NavHostController) {
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(8.dp)
+                .size(48.dp)
         ) {
             Icon(
                 imageVector = Icons.Filled.Settings,
-                contentDescription = "Setup"
+                contentDescription = "Setup",
+                modifier = Modifier.size(48.dp)
             )
         }
 
