@@ -52,14 +52,15 @@ class RecommendViewModel : ViewModel() {
                     }
                 }
 
-            // Split the list file: header instructions → system prompt, ratings data → user message
-            val separatorIndex = listContent.indexOf("===")
-            val systemPrompt = if (separatorIndex >= 0) listContent.substring(0, separatorIndex).trim() else null
-            val listData = if (separatorIndex >= 0) listContent.substring(separatorIndex).trim() else listContent
+            Log.d("Recommend", "listContent length=${listContent.length}")
 
-            Log.d("Recommend", "systemPrompt length=${systemPrompt?.length}, listData length=${listData.length}")
+            // The file already contains full instructions for Claude.
+            // We add only a strict output-format enforcement in the system prompt.
+            val systemPrompt = "You MUST respond with ONLY the movie or show title and year, " +
+                "in this exact format: Title (Year)\n" +
+                "No explanation, no markdown, no other text. Just: Title (Year)"
 
-            var userMessage = "$listData\n\nrecommend"
+            var userMessage = "$listContent\n\nrecommend"
             var lastResponse = ""
             for (attempt in 0 until 5) {
                 val result = app.anthropicService.sendRawMessage(userMessage, systemPrompt)
@@ -72,7 +73,7 @@ class RecommendViewModel : ViewModel() {
                 val parsed = parseTitleYear(lastResponse)
                 Log.d("Recommend", "Parsed: $parsed")
                 if (parsed == null) {
-                    userMessage = "$listData\n\nrecommend\n\n$lastResponse\n\nMake sure you provide title and year only!"
+                    userMessage = "$listContent\n\nrecommend\n\n$lastResponse\n\nMake sure you provide title and year only!"
                     continue
                 }
 
