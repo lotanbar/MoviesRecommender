@@ -1,5 +1,6 @@
 package com.moviesrecommender.ui.screens
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.moviesrecommender.MoviesRecommenderApp
@@ -51,19 +52,27 @@ class RecommendViewModel : ViewModel() {
                     }
                 }
 
-            var prompt = "$listContent\n\nrecommend"
+            // Split the list file: header instructions → system prompt, ratings data → user message
+            val separatorIndex = listContent.indexOf("===")
+            val systemPrompt = if (separatorIndex >= 0) listContent.substring(0, separatorIndex).trim() else null
+            val listData = if (separatorIndex >= 0) listContent.substring(separatorIndex).trim() else listContent
+
+            Log.d("Recommend", "systemPrompt length=${systemPrompt?.length}, listData length=${listData.length}")
+
+            var userMessage = "$listData\n\nrecommend"
             var lastResponse = ""
             for (attempt in 0 until 5) {
-                val result = app.anthropicService.sendRawMessage(prompt)
+                val result = app.anthropicService.sendRawMessage(userMessage, systemPrompt)
                 if (result is AnthropicResult.Failure) {
                     _uiState.value = RecommendUiState.Error(result.error.toMessage())
                     return@launch
                 }
                 lastResponse = (result as AnthropicResult.Success).value
+                Log.d("Recommend", "Attempt $attempt response: [$lastResponse]")
                 val parsed = parseTitleYear(lastResponse)
+                Log.d("Recommend", "Parsed: $parsed")
                 if (parsed == null) {
-                    // Response wasn't exactly "Title (Year)" — re-prompt before doing anything else
-                    prompt = "$listContent\n\nrecommend\n\n$lastResponse\n\nMake sure you provide title and year only!"
+                    userMessage = "$listData\n\nrecommend\n\n$lastResponse\n\nMake sure you provide title and year only!"
                     continue
                 }
 
@@ -86,7 +95,7 @@ class RecommendViewModel : ViewModel() {
 
             _uiState.value = RecommendUiState.Error(
                 message = "Could not parse a valid title from Claude's response.",
-                debugInfo = "Last response: \"$lastResponse\""
+                debugInfo = "Last response: [$lastResponse]"
             )
         }
     }
@@ -101,11 +110,6 @@ class RecommendViewModel : ViewModel() {
     companion object {
         private val EXACT_REGEX = Regex("""^(.+?)\s*\((\d{4})\)\s*$""")
 
-        /**
-         * Returns a parsed result only if the entire response (after stripping markdown)
-         * is exactly "Title (Year)" — nothing more, nothing less.
-         * Any extra prose causes null, triggering a re-prompt.
-         */
         fun parseTitleYear(response: String): Pair<String, Int>? {
             val clean = response.trim().replace(Regex("""[*_]+"""), "")
             val match = EXACT_REGEX.matchEntire(clean) ?: return null

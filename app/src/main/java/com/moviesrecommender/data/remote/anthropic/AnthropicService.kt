@@ -23,14 +23,14 @@ class AnthropicService(
         }
     }
 
-    /** Send a fully pre-built prompt (used by Recommend/Rate flows for retries). */
-    suspend fun sendRawMessage(prompt: String): AnthropicResult<String> {
+    /** Send a pre-built user message, with optional system prompt. */
+    suspend fun sendRawMessage(prompt: String, system: String? = null): AnthropicResult<String> {
         val apiKey = authManager.getApiKey()
             ?: return AnthropicResult.Failure(AnthropicError.ApiKeyMissing)
         val modelId = authManager.getModelId()
             ?: return AnthropicResult.Failure(AnthropicError.ModelNotSelected)
         return try {
-            AnthropicResult.Success(apiClient.sendMessage(apiKey, modelId, prompt).trim())
+            AnthropicResult.Success(apiClient.sendMessage(apiKey, modelId, prompt, system).trim())
         } catch (e: AnthropicApiException) {
             AnthropicResult.Failure(e.toAnthropicError())
         }

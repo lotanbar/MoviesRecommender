@@ -47,11 +47,13 @@ class OkHttpAnthropicApiClient(
     override suspend fun sendMessage(
         apiKey: String,
         modelId: String,
-        prompt: String
+        prompt: String,
+        system: String?
     ): String = withContext(Dispatchers.IO) {
         val bodyJson = JSONObject().apply {
             put("model", debugModel)  // TODO: revert to modelId
             put("max_tokens", 1024)
+            if (system != null) put("system", system)
             put("messages", org.json.JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "user")

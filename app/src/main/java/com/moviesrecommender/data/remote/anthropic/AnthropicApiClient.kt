@@ -4,7 +4,12 @@ data class ModelInfo(val id: String, val createdAt: String)
 
 interface AnthropicApiClient {
     suspend fun fetchModels(apiKey: String): List<ModelInfo>
-    suspend fun sendMessage(apiKey: String, modelId: String, prompt: String): String
+    suspend fun sendMessage(
+        apiKey: String,
+        modelId: String,
+        prompt: String,
+        system: String? = null
+    ): String
 }
 
 sealed class AnthropicApiException(message: String) : Exception(message) {
