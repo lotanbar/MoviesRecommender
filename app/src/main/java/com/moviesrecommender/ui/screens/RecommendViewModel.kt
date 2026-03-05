@@ -3,6 +3,7 @@ package com.moviesrecommender.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.moviesrecommender.MoviesRecommenderApp
+import com.moviesrecommender.data.remote.anthropic.AnthropicError
 import com.moviesrecommender.data.remote.anthropic.AnthropicResult
 import com.moviesrecommender.data.remote.dropbox.DropboxError
 import com.moviesrecommender.data.remote.dropbox.DropboxResult
@@ -55,7 +56,7 @@ class RecommendViewModel : ViewModel() {
             for (attempt in 0 until 5) {
                 val result = app.anthropicService.sendRawMessage(prompt)
                 if (result is AnthropicResult.Failure) {
-                    _uiState.value = RecommendUiState.Error("Claude request failed. Please try again.")
+                    _uiState.value = RecommendUiState.Error(result.error.toMessage())
                     return@launch
                 }
                 val response = (result as AnthropicResult.Success).value
@@ -103,10 +104,19 @@ class RecommendViewModel : ViewModel() {
     }
 }
 
+private fun AnthropicError.toMessage(): String = when (this) {
+    AnthropicError.ApiKeyMissing -> "Claude API key not configured. Please go to Setup."
+    AnthropicError.ModelNotSelected -> "Claude model not selected. Please go to Setup."
+    AnthropicError.InvalidApiKey -> "Invalid Claude API key. Please go to Setup."
+    AnthropicError.NoInternet -> "Claude request failed: No internet connection."
+    AnthropicError.NoSonnetModelFound -> "No Claude Sonnet model found. Please go to Setup."
+    is AnthropicError.ApiError -> "Claude request failed: $message"
+}
+
 private fun DropboxError.toMessage(): String = when (this) {
-    DropboxError.NoInternet -> "Upload failed: No internet connection."
-    DropboxError.TokenExpired -> "Upload failed: Dropbox session expired - please re-authenticate."
-    DropboxError.StorageFull -> "Upload failed: Dropbox storage is full."
-    DropboxError.RateLimit -> "Upload failed: Too many requests. Try again shortly."
+    DropboxError.NoInternet -> "Download failed: No internet connection."
+    DropboxError.TokenExpired -> "Dropbox session expired - please re-authenticate."
+    DropboxError.StorageFull -> "Dropbox storage is full."
+    DropboxError.RateLimit -> "Too many requests. Try again shortly."
     is DropboxError.Unknown -> "Download failed: $message"
 }

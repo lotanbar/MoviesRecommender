@@ -2,11 +2,16 @@ package com.moviesrecommender.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,25 +23,42 @@ import com.moviesrecommender.navigation.Screen
 
 @Composable
 fun ActionsScreen(navController: NavHostController) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        listOf(
-            "Search"    to Screen.Search.route,
-            "Recommend" to Screen.Recommend.route,
-            "Rate"      to null,              // TODO (Commit 12): wire Rate flow
-            "Wishlist"  to Screen.Wishlist.route
-        ).forEach { (label, route) ->
-            Button(
-                onClick = { route?.let { navController.navigate(it) } },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(text = label, style = MaterialTheme.typography.titleLarge)
+        IconButton(
+            onClick = { navController.navigate(Screen.Setup.route) },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Settings,
+                contentDescription = "Setup"
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            listOf(
+                "Search"    to Screen.Search.route,
+                "Recommend" to Screen.Recommend.route,
+                "Rate"      to null,              // TODO (Commit 12): wire Rate flow
+                "Wishlist"  to Screen.Wishlist.route
+            ).forEach { (label, route) ->
+                Button(
+                    onClick = { route?.let { navController.navigate(it) } },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(text = label, style = MaterialTheme.typography.titleLarge)
+                }
             }
         }
     }
