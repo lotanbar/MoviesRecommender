@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 
 sealed class RecommendUiState {
     object Loading : RecommendUiState()
-    data class Error(val message: String) : RecommendUiState()
+    data class Error(val message: String, val debugInfo: String? = null) : RecommendUiState()
 }
 
 class RecommendViewModel : ViewModel() {
@@ -51,7 +51,6 @@ class RecommendViewModel : ViewModel() {
                     }
                 }
 
-            // Retry loop: up to 5 attempts covering bad format AND TMDB not-found
             var prompt = "$listContent\n\nrecommend"
             for (attempt in 0 until 5) {
                 val result = app.anthropicService.sendRawMessage(prompt)
@@ -74,17 +73,11 @@ class RecommendViewModel : ViewModel() {
                         return@launch
                     }
                     is TmdbResult.Failure -> {
-                        when (tmdbResult.error) {
-                            TmdbError.NotFound -> {
-                                // Ask Claude for a different title
-                                prompt = "$listContent\n\nrecommend\n\n$response\n\n\"${parsed.first}\" was not found on TMDB. Please suggest a different title."
-                                continue
-                            }
-                            else -> {
-                                _uiState.value = RecommendUiState.Error(tmdbResult.error.toMessage())
-                                return@launch
-                            }
-                        }
+                        _uiState.value = RecommendUiState.Error(
+                            message = tmdbResult.error.toMessage(),
+                            debugInfo = "Claude said: \"$response\"\nParsed: title=\"${parsed.first}\" year=${parsed.second}"
+                        )
+                        return@launch
                     }
                 }
             }

@@ -23,6 +23,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -37,14 +38,12 @@ fun RecommendScreen(navController: NavHostController) {
     val viewModel = viewModel<RecommendViewModel>()
     val uiState by viewModel.uiState.collectAsState()
 
-    // One-time navigation events from the ViewModel
     LaunchedEffect(Unit) {
         viewModel.navigateToPreview.collect { (tmdbId, mediaType) ->
             navController.navigate(Screen.Preview.createRoute(tmdbId, mediaType))
         }
     }
 
-    // Re-run recommend when returning from Preview
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -65,10 +64,7 @@ fun RecommendScreen(navController: NavHostController) {
                 .align(Alignment.TopStart)
                 .padding(8.dp)
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back"
-            )
+            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
         }
 
         when (val state = uiState) {
@@ -79,10 +75,7 @@ fun RecommendScreen(navController: NavHostController) {
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     CircularProgressIndicator()
-                    Text(
-                        text = "Finding a recommendation…",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    Text("Finding a recommendation…", style = MaterialTheme.typography.bodyLarge)
                 }
             }
             is RecommendUiState.Error -> {
@@ -91,13 +84,22 @@ fun RecommendScreen(navController: NavHostController) {
                         .align(Alignment.Center)
                         .padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
                         text = state.message,
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.Center
                     )
+                    if (state.debugInfo != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = state.debugInfo,
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            textAlign = TextAlign.Start
+                        )
+                    }
                     Spacer(Modifier.height(4.dp))
                     Button(onClick = { viewModel.startRecommend() }) {
                         Text("Retry")
