@@ -8,10 +8,16 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
+import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import java.util.concurrent.TimeUnit
 
 class OkHttpAnthropicApiClient(
-    private val httpClient: OkHttpClient = OkHttpClient()
+    private val httpClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)  // Extended thinking can take a while
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
 ) : AnthropicApiClient {
 
     private val json = "application/json".toMediaType()
@@ -85,6 +91,8 @@ class OkHttpAnthropicApiClient(
             throw e
         } catch (e: UnknownHostException) {
             throw AnthropicApiException.NoNetwork()
+        } catch (e: SocketTimeoutException) {
+            throw AnthropicApiException.ServerError("Request timed out — Claude took too long to respond.")
         } catch (e: IOException) {
             throw AnthropicApiException.NoNetwork()
         }
