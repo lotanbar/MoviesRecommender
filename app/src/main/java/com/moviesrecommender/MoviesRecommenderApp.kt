@@ -36,6 +36,9 @@ class MoviesRecommenderApp : Application() {
         OkHttpWikidataApiClient()
     }
 
+    /** In-memory list cache shared between Recommend/Rate flows and PreviewScreen. */
+    var cachedListContent: String? = null
+
     companion object {
         lateinit var instance: MoviesRecommenderApp
             private set

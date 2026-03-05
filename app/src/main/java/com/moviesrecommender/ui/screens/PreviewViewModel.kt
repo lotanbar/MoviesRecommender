@@ -52,9 +52,17 @@ class PreviewViewModel(
 
     private suspend fun load() = coroutineScope {
         val detailsDeferred = async { tmdbService.fetchDetails(tmdbId, mediaType) }
-        val listDeferred = async { dropboxService.downloadList() }
-        val listResult = listDeferred.await()
-        if (listResult is DropboxResult.Success) listContent = listResult.value
+        // Use cached list from Recommend/Rate flow to avoid redundant download
+        val cached = app.cachedListContent
+        if (cached != null) {
+            listContent = cached
+        } else {
+            val listResult = dropboxService.downloadList()
+            if (listResult is DropboxResult.Success) {
+                listContent = listResult.value
+                app.cachedListContent = listResult.value
+            }
+        }
         when (val result = detailsDeferred.await()) {
             is TmdbResult.Success -> {
                 val t = result.value
@@ -92,6 +100,7 @@ class PreviewViewModel(
         val t = loaded.title
         val updated = updateListRating(listContent ?: "", t.title, t.year, newRating)
         listContent = updated
+        app.cachedListContent = updated
         _uiState.value = loaded.copy(rating = newRating, isUploading = true, uploadError = false)
         viewModelScope.launch {
             val success = dropboxService.uploadList(updated) is DropboxResult.Success
@@ -104,6 +113,7 @@ class PreviewViewModel(
         val t = loaded.title
         val updated = removeEntry(listContent ?: "", t.title, t.year)
         listContent = updated
+        app.cachedListContent = updated
         _uiState.value = loaded.copy(rating = null, isUploading = true, uploadError = false)
         viewModelScope.launch {
             val success = dropboxService.uploadList(updated) is DropboxResult.Success

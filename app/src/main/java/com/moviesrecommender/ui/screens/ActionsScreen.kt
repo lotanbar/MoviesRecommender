@@ -18,7 +18,6 @@ import com.moviesrecommender.navigation.Screen
 
 @Composable
 fun ActionsScreen(navController: NavHostController) {
-    // TODO (Commit 11/12): wire Recommend and Rate to AI flows
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -29,8 +28,8 @@ fun ActionsScreen(navController: NavHostController) {
     ) {
         listOf(
             "Search"    to Screen.Search.route,
-            "Recommend" to null,
-            "Rate"      to null,
+            "Recommend" to Screen.Recommend.route,
+            "Rate"      to null,              // TODO (Commit 12): wire Rate flow
             "Wishlist"  to Screen.Wishlist.route
         ).forEach { (label, route) ->
             Button(
