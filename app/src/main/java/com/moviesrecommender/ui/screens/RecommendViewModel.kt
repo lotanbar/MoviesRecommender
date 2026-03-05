@@ -52,16 +52,17 @@ class RecommendViewModel : ViewModel() {
                 }
 
             var prompt = "$listContent\n\nrecommend"
+            var lastResponse = ""
             for (attempt in 0 until 5) {
                 val result = app.anthropicService.sendRawMessage(prompt)
                 if (result is AnthropicResult.Failure) {
                     _uiState.value = RecommendUiState.Error(result.error.toMessage())
                     return@launch
                 }
-                val response = (result as AnthropicResult.Success).value
-                val parsed = parseTitleYear(response)
+                lastResponse = (result as AnthropicResult.Success).value
+                val parsed = parseTitleYear(lastResponse)
                 if (parsed == null) {
-                    prompt = "$listContent\n\nrecommend\n\n$response\n\nMake sure you provide title and year only!"
+                    prompt = "$listContent\n\nrecommend\n\n$lastResponse\n\nMake sure you provide title and year only!"
                     continue
                 }
 
@@ -75,14 +76,17 @@ class RecommendViewModel : ViewModel() {
                     is TmdbResult.Failure -> {
                         _uiState.value = RecommendUiState.Error(
                             message = tmdbResult.error.toMessage(),
-                            debugInfo = "Claude said: \"$response\"\nParsed: title=\"${parsed.first}\" year=${parsed.second}"
+                            debugInfo = "Claude said: \"$lastResponse\"\nParsed: title=\"${parsed.first}\" year=${parsed.second}"
                         )
                         return@launch
                     }
                 }
             }
 
-            _uiState.value = RecommendUiState.Error("Claude request failed. Please try again.")
+            _uiState.value = RecommendUiState.Error(
+                message = "Could not parse a valid title from Claude's response.",
+                debugInfo = "Last response: \"$lastResponse\""
+            )
         }
     }
 
@@ -94,13 +98,20 @@ class RecommendViewModel : ViewModel() {
     }
 
     companion object {
-        private val TITLE_YEAR_REGEX = Regex("""^(.+?)\s*\((\d{4})\)\s*$""")
+        private val LINE_REGEX = Regex("""^(.+?)\s*\((\d{4})\)\s*$""")
 
+        /**
+         * Scan each line of the response for a "Title (Year)" pattern.
+         * Handles extra prose before/after the title line (e.g. Haiku adding explanation).
+         */
         fun parseTitleYear(response: String): Pair<String, Int>? {
-            val match = TITLE_YEAR_REGEX.matchEntire(response.trim()) ?: return null
-            val title = match.groupValues[1].trim()
-            val year = match.groupValues[2].toIntOrNull() ?: return null
-            return Pair(title, year)
+            for (line in response.trim().lines().asReversed()) {
+                val match = LINE_REGEX.matchEntire(line.trim()) ?: continue
+                val title = match.groupValues[1].trim()
+                val year = match.groupValues[2].toIntOrNull() ?: continue
+                return Pair(title, year)
+            }
+            return null
         }
     }
 }
