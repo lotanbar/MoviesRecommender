@@ -14,7 +14,10 @@ data class Title(
     val leadActors: List<String>,
     val productionCompany: String?,
     val mediaType: MediaType,
-    val imdbId: String? = null
+    val imdbId: String? = null,
+    val trailerKeys: List<String> = emptyList(),
+    val writer: String? = null,
+    val producers: List<String> = emptyList()
 ) {
     fun posterUrl(width: Int = 500): String? =
         posterPath?.let { "https://image.tmdb.org/t/p/w$width$it" }

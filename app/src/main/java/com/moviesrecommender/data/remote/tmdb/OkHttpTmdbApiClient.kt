@@ -61,7 +61,7 @@ class OkHttpTmdbApiClient(
         withContext(Dispatchers.IO) {
             val endpoint = if (mediaType == MediaType.MOVIE) "movie" else "tv"
             val body = executeGet(
-                "https://api.themoviedb.org/3/$endpoint/$id?api_key=$apiKey&append_to_response=credits"
+                "https://api.themoviedb.org/3/$endpoint/$id?api_key=$apiKey&append_to_response=credits,external_ids,videos"
             )
             val obj = JSONObject(body)
 
@@ -91,13 +91,37 @@ class OkHttpTmdbApiClient(
             }
 
             var director: String? = null
+            var writer: String? = null
+            val producers = mutableListOf<String>()
             val crew = credits?.optJSONArray("crew")
             if (crew != null) {
                 for (i in 0 until crew.length()) {
                     val member = crew.getJSONObject(i)
-                    if (member.optString("job") == "Director") {
-                        director = member.optString("name").takeIf { it.isNotEmpty() }
-                        break
+                    val job = member.optString("job")
+                    val name = member.optString("name").takeIf { it.isNotEmpty() } ?: continue
+                    when {
+                        director == null && job == "Director" -> director = name
+                        writer == null && job in listOf("Screenplay", "Writer", "Story") -> writer = name
+                        producers.size < 2 && job in listOf("Producer", "Executive Producer") -> producers.add(name)
+                    }
+                }
+            }
+            // For TV, pick up creator as writer if not found
+            if (writer == null && mediaType == MediaType.TV) {
+                val createdBy = obj.optJSONArray("created_by")
+                if (createdBy != null && createdBy.length() > 0) {
+                    writer = createdBy.getJSONObject(0).optString("name").takeIf { it.isNotEmpty() }
+                }
+            }
+
+            val trailerKeys = buildList {
+                val videos = obj.optJSONObject("videos")?.optJSONArray("results")
+                if (videos != null) {
+                    for (i in 0 until videos.length()) {
+                        val v = videos.getJSONObject(i)
+                        if (v.optString("site") == "YouTube" && v.optString("type") == "Trailer") {
+                            v.optString("key").takeIf { it.isNotEmpty() }?.let { add(it) }
+                        }
                     }
                 }
             }
@@ -115,6 +139,10 @@ class OkHttpTmdbApiClient(
                 productionCompany = productionCompany,
                 mediaType = mediaType,
                 imdbId = obj.optString("imdb_id").takeIf { it.isNotEmpty() }
+                    ?: obj.optJSONObject("external_ids")?.optString("imdb_id")?.takeIf { it.isNotEmpty() },
+                trailerKeys = trailerKeys,
+                writer = writer,
+                producers = producers
             )
         }
 
