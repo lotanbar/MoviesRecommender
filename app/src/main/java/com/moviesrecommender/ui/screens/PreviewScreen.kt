@@ -2,26 +2,35 @@ package com.moviesrecommender.ui.screens
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
@@ -35,13 +44,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -107,7 +117,6 @@ fun PreviewScreen(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LoadedContent(
     state: PreviewUiState.Loaded,
@@ -117,211 +126,275 @@ private fun LoadedContent(
     val context = LocalContext.current
     fun openUrl(url: String) = context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 
-    var awardsExpanded by remember { mutableStateOf(false) }
-    var detailsExpanded by remember { mutableStateOf(false) }
+    val pagerState = rememberPagerState(pageCount = { 2 })
 
-    LazyColumn(modifier = modifier) {
-        item {
-            AsyncImage(
-                model = title.posterUrl(500),
-                contentDescription = title.title,
-                contentScale = ContentScale.FillWidth,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 16.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+    Column(modifier = modifier) {
+        // Title fixed at top
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = title.title,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
             )
+            Text(
+                text = title.year.toString(),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            MediaTypePill(title.mediaType)
         }
-        item {
-            Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 2.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = title.title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = title.year.toString(),
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    MediaTypePill(title.mediaType)
-                }
+
+        // Pager fills all remaining space
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) { page ->
+            when (page) {
+                0 -> AsyncImage(
+                    model = title.posterUrl(500),
+                    contentDescription = title.title,
+                    contentScale = ContentScale.FillWidth,
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                )
+                else -> DetailsPage(
+                    state = state,
+                    onOpenUrl = ::openUrl,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
-        item {
-            Column {
-                // Four equal-width action buttons
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DetailsPage(
+    state: PreviewUiState.Loaded,
+    onOpenUrl: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val title = state.title
+    val query = Uri.encode("${title.title} ${title.year}")
+
+    Column(
+        modifier = modifier
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(16.dp)
+    ) {
+        // Scrollable content
+        val scrollState = rememberScrollState()
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .drawWithContent {
+                    drawContent()
+                    if (scrollState.maxValue > 0) {
+                        val trackPad = 3.dp.toPx()
+                        val thumbW = 3.dp.toPx()
+                        val viewport = size.height
+                        val total = viewport + scrollState.maxValue
+                        val thumbH = (viewport / total) * viewport
+                        val thumbY = (scrollState.value.toFloat() / scrollState.maxValue) * (viewport - thumbH)
+                        drawRoundRect(
+                            color = Color.White.copy(alpha = 0.35f),
+                            topLeft = Offset(size.width - thumbW - trackPad, thumbY),
+                            size = Size(thumbW, thumbH),
+                            cornerRadius = CornerRadius(thumbW / 2)
+                        )
+                    }
+                }
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Trailers
+            if (title.trailerKeys.isEmpty()) {
+                Text(
+                    "No Trailer Found",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.6f)
+                )
+            } else {
+                val trailerState = rememberLazyListState()
+                LazyRow(
+                    state = trailerState,
+                    flingBehavior = rememberSnapFlingBehavior(trailerState),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    // YouTube
-                    val query = Uri.encode("${title.title} ${title.year}")
-                    ActionButton(
-                        modifier = Modifier.weight(1f),
-                        label = "YouTube",
-                        onClick = { openUrl("https://www.youtube.com/results?search_query=$query") }
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_youtube),
-                            contentDescription = null,
-                            tint = Color.Unspecified,
-                            modifier = Modifier.size(30.dp)
-                        )
-                    }
-
-                    // Wikipedia
-                    ActionButton(
-                        modifier = Modifier.weight(1f),
-                        label = "Wikipedia",
-                        onClick = { state.wikipediaUrl?.let { openUrl(it) } },
-                        enabled = state.wikipediaReady && state.wikipediaUrl != null
-                    ) {
-                        if (!state.wikipediaReady) {
-                            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                        } else {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_wikipedia),
-                                contentDescription = null,
-                                tint = Color.Unspecified,
+                    items(title.trailerKeys) { key ->
+                        Box(
+                            modifier = Modifier
+                                .fillParentMaxWidth()
+                                .aspectRatio(16f / 9f)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color.Black)
+                                .clickable { onOpenUrl("https://www.youtube.com/watch?v=$key") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncImage(
+                                model = "https://img.youtube.com/vi/$key/hqdefault.jpg",
+                                contentDescription = "Trailer",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            Box(
                                 modifier = Modifier
-                                    .size(30.dp)
-                                    .alpha(if (state.wikipediaUrl != null) 1f else 0.35f)
-                            )
-                        }
-                    }
-
-                    // Awards (Oscar / Emmy)
-                    ActionButton(
-                        modifier = Modifier.weight(1f),
-                        label = if (!state.awardsReady) "Awards"
-                                else if (state.awards.isEmpty()) "No wins"
-                                else "${state.awards.size} win${if (state.awards.size == 1) "" else "s"}",
-                        onClick = { if (state.awardsReady && state.awards.isNotEmpty()) awardsExpanded = !awardsExpanded },
-                        enabled = state.awardsReady && state.awards.isNotEmpty(),
-                        isActive = awardsExpanded
-                    ) {
-                        if (!state.awardsReady) {
-                            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                        } else {
-                            Icon(
-                                painter = painterResource(
-                                    if (title.mediaType == MediaType.MOVIE) R.drawable.ic_oscar
-                                    else R.drawable.ic_emmy
-                                ),
-                                contentDescription = null,
-                                tint = Color.Unspecified,
-                                modifier = Modifier
-                                    .size(30.dp)
-                                    .alpha(if (state.awards.isNotEmpty()) 1f else 0.35f)
-                            )
-                        }
-                    }
-
-                    // Details (genres + country + crew + description)
-                    ActionButton(
-                        modifier = Modifier.weight(1f),
-                        label = "Details",
-                        onClick = { detailsExpanded = !detailsExpanded },
-                        isActive = detailsExpanded
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            modifier = Modifier.size(30.dp)
-                        )
-                    }
-                }
-
-                // Expandable: awards list
-                AnimatedVisibility(visible = awardsExpanded && state.awardsReady && state.awards.isNotEmpty()) {
-                    Column(
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        state.awards.forEach { award ->
-                            Text(
-                                text = "· $award",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                // Expandable: details panel
-                AnimatedVisibility(visible = detailsExpanded) {
-                    Column(
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Country flag + name
-                        if (title.country != null) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    .size(48.dp)
+                                    .background(Color.Black.copy(alpha = 0.55f), CircleShape),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Text(text = countryCodeToFlag(title.country), fontSize = 32.sp)
-                                Text(
-                                    text = countryCodeToName(title.country),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color.White
+                                Icon(
+                                    imageVector = Icons.Filled.PlayArrow,
+                                    contentDescription = "Play trailer",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(30.dp)
                                 )
                             }
                         }
-                        // Genres
-                        if (title.genres.isNotEmpty()) {
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                title.genres.forEach { genre ->
-                                    AssistChip(onClick = {}, label = {
-                                        Text(genre, style = MaterialTheme.typography.bodyMedium)
-                                    })
-                                }
-                            }
-                        }
-                        // Crew
-                        title.director?.let {
-                            Text(
-                                text = "Director: $it",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White
-                            )
-                        }
-                        if (title.leadActors.isNotEmpty()) {
-                            Text(
-                                text = "Starring: ${title.leadActors.joinToString(", ")}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White
-                            )
-                        }
-                        title.productionCompany?.let {
-                            Text(
-                                text = it,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White.copy(alpha = 0.7f)
-                            )
-                        }
-                        // Description
-                        title.overview?.takeIf { it.isNotBlank() }?.let { overview ->
-                            Text(
-                                text = overview,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White
-                            )
-                        }
                     }
+                }
+            }
+
+            // Genres
+            if (title.genres.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    title.genres.forEach { genre ->
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(genre, style = MaterialTheme.typography.bodySmall) }
+                        )
+                    }
+                }
+            }
+
+            // Overview
+            title.overview?.takeIf { it.isNotBlank() }?.let { overview ->
+                Text(overview, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            }
+
+            // Cast & crew
+            if (title.leadActors.isNotEmpty()) {
+                Text(
+                    "Starring: ${title.leadActors.joinToString(", ")}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White
+                )
+            }
+
+            val prodLine = listOfNotNull(
+                title.productionCompany,
+                title.country?.let { countryCodeToName(it) }
+            ).joinToString(" · ")
+            if (prodLine.isNotEmpty()) {
+                Text(prodLine, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            }
+
+            title.director?.let {
+                Text("Director: $it", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            }
+            title.writer?.let {
+                Text("Writer: $it", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            }
+            title.producers.forEach { prod ->
+                Text("Producer: $prod", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            }
+
+            // Awards
+            when {
+                !state.awardsReady -> CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp).align(Alignment.CenterHorizontally),
+                    strokeWidth = 2.dp
+                )
+                state.awards.isEmpty() -> Text(
+                    "No notable awards",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.6f)
+                )
+                else -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        "Won ${state.awards.size} Notable Award${if (state.awards.size == 1) "" else "s"}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                    state.awards.forEach { award ->
+                        Text("· $award", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Buttons pinned at bottom
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ActionButton(
+                modifier = Modifier.weight(1f),
+                label = "YouTube",
+                onClick = { onOpenUrl("https://www.youtube.com/results?search_query=$query") }
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_youtube),
+                    contentDescription = null,
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+
+            ActionButton(
+                modifier = Modifier.weight(1f),
+                label = "Wikipedia",
+                onClick = { state.wikipediaUrl?.let { onOpenUrl(it) } },
+                enabled = state.wikipediaReady && state.wikipediaUrl != null
+            ) {
+                if (!state.wikipediaReady) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_wikipedia),
+                        contentDescription = null,
+                        tint = Color.Unspecified,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .alpha(if (state.wikipediaUrl != null) 1f else 0.35f)
+                    )
+                }
+            }
+
+            ActionButton(
+                modifier = Modifier.weight(1f),
+                label = "IMDb",
+                onClick = { title.imdbId?.let { onOpenUrl("https://www.imdb.com/title/$it") } },
+                enabled = title.imdbId != null
+            ) {
+                Box(
+                    modifier = Modifier.height(28.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "IMDb",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 14.sp,
+                        color = Color(0xFFF5C518).copy(alpha = if (title.imdbId != null) 1f else 0.35f)
+                    )
                 }
             }
         }
@@ -338,7 +411,7 @@ private fun ActionButton(
     content: @Composable () -> Unit
 ) {
     val bg = if (isActive) MaterialTheme.colorScheme.primaryContainer
-             else MaterialTheme.colorScheme.surfaceVariant
+             else MaterialTheme.colorScheme.surface
     val contentColor = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
                        else if (!enabled) Color.White.copy(alpha = 0.35f)
                        else Color.White
@@ -468,13 +541,6 @@ private fun RatingCircleButton(
             content()
         }
     }
-}
-
-private fun countryCodeToFlag(code: String): String {
-    if (code.length != 2) return ""
-    val base = 0x1F1E6 - 'A'.code
-    return String(Character.toChars(base + code[0].uppercaseChar().code)) +
-           String(Character.toChars(base + code[1].uppercaseChar().code))
 }
 
 private fun countryCodeToName(code: String): String =
