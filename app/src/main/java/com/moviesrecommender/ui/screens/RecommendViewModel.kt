@@ -62,6 +62,7 @@ class RecommendViewModel : ViewModel() {
                 lastResponse = (result as AnthropicResult.Success).value
                 val parsed = parseTitleYear(lastResponse)
                 if (parsed == null) {
+                    // Response wasn't exactly "Title (Year)" — re-prompt before doing anything else
                     prompt = "$listContent\n\nrecommend\n\n$lastResponse\n\nMake sure you provide title and year only!"
                     continue
                 }
@@ -98,21 +99,19 @@ class RecommendViewModel : ViewModel() {
     }
 
     companion object {
-        private val LINE_REGEX = Regex("""^(.+?)\s*\((\d{4})\)\s*$""")
+        private val EXACT_REGEX = Regex("""^(.+?)\s*\((\d{4})\)\s*$""")
 
         /**
-         * Scan each line of the response for a "Title (Year)" pattern.
-         * Handles extra prose before/after the title line (e.g. Haiku adding explanation).
+         * Returns a parsed result only if the entire response (after stripping markdown)
+         * is exactly "Title (Year)" — nothing more, nothing less.
+         * Any extra prose causes null, triggering a re-prompt.
          */
         fun parseTitleYear(response: String): Pair<String, Int>? {
-            for (line in response.trim().lines().asReversed()) {
-                val clean = line.trim().replace(Regex("""[*_]+"""), "")
-                val match = LINE_REGEX.matchEntire(clean) ?: continue
-                val title = match.groupValues[1].trim()
-                val year = match.groupValues[2].toIntOrNull() ?: continue
-                return Pair(title, year)
-            }
-            return null
+            val clean = response.trim().replace(Regex("""[*_]+"""), "")
+            val match = EXACT_REGEX.matchEntire(clean) ?: return null
+            val title = match.groupValues[1].trim()
+            val year = match.groupValues[2].toIntOrNull() ?: return null
+            return Pair(title, year)
         }
     }
 }
