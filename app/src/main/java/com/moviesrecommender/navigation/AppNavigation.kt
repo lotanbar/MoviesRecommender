@@ -24,8 +24,14 @@ fun AppNavigation(navController: NavHostController, appViewModel: AppViewModel) 
         composable(Screen.Splash.route) {
             SplashScreen(navController)
         }
-        composable(Screen.Setup.route) {
-            SetupScreen(navController, appViewModel)
+        composable(
+            route = Screen.Setup.route,
+            arguments = listOf(
+                navArgument("showContinueAnyway") { type = NavType.BoolType }
+            )
+        ) { backStackEntry ->
+            val showContinueAnyway = backStackEntry.arguments?.getBoolean("showContinueAnyway") ?: false
+            SetupScreen(navController, appViewModel, showContinueAnyway = showContinueAnyway)
         }
         composable(Screen.Actions.route) {
             ActionsScreen(navController)

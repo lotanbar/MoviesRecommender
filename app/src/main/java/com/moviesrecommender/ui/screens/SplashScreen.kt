@@ -22,7 +22,8 @@ fun SplashScreen(navController: NavHostController) {
             app.tmdbService.isConfigured() &&
             app.anthropicService.isConfigured()
 
-        val target = if (allConfigured) Screen.Actions.route else Screen.Setup.route
+        val target = if (allConfigured) Screen.Actions.route
+                     else Screen.Setup.createRoute(showContinueAnyway = true)
         navController.navigate(target) {
             popUpTo(Screen.Splash.route) { inclusive = true }
         }

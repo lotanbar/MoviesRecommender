@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -33,12 +34,12 @@ import com.moviesrecommender.navigation.Screen
 import com.moviesrecommender.ui.components.CheckButton
 import com.moviesrecommender.ui.components.FolderPickerDialog
 import com.moviesrecommender.util.ToastManager
-import kotlinx.coroutines.delay
 
 @Composable
 fun SetupScreen(
     navController: NavHostController,
     appViewModel: AppViewModel,
+    showContinueAnyway: Boolean,
     setupViewModel: SetupViewModel = viewModel()
 ) {
     val dropboxAuthenticated by setupViewModel.dropboxAuthenticated.collectAsState()
@@ -60,15 +61,6 @@ fun SetupScreen(
     LaunchedEffect(Unit) {
         appViewModel.dropboxAuthCode.collect { code ->
             setupViewModel.handleDropboxCallback(code)
-        }
-    }
-
-    LaunchedEffect(dropboxAuthenticated, listPathSet, tmdbKeySet, claudeKeySet) {
-        if (dropboxAuthenticated && listPathSet && tmdbKeySet && claudeKeySet) {
-            delay(600)
-            navController.navigate(Screen.Actions.route) {
-                popUpTo(Screen.Setup.route) { inclusive = true }
-            }
         }
     }
 
@@ -187,6 +179,20 @@ fun SetupScreen(
                     pendingClearAction = { setupViewModel.clearClaudeKey() }
                 }
             )
+
+            if (showContinueAnyway) {
+                Spacer(Modifier.height(32.dp))
+                Button(
+                    onClick = {
+                        navController.navigate(Screen.Actions.route) {
+                            popUpTo(Screen.Setup.route) { inclusive = true }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Continue anyway")
+                }
+            }
         }
 
         if (isLoading) {
