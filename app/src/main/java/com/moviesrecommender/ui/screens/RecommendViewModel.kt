@@ -77,7 +77,9 @@ class RecommendViewModel : ViewModel() {
                     continue
                 }
 
-                when (val tmdbResult = app.tmdbService.fetchMetadata(parsed.first, parsed.second)) {
+                val tmdbResult = app.tmdbService.fetchMetadata(parsed.first, parsed.second)
+                Log.d("Recommend", "TMDB result for ${parsed.first} (${parsed.second}): $tmdbResult")
+                when (tmdbResult) {
                     is TmdbResult.Success -> {
                         val t = tmdbResult.value
                         hasNavigatedToPreview = true

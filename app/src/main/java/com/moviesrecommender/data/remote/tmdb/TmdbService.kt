@@ -57,7 +57,7 @@ class TmdbService(
     suspend fun fetchMetadata(title: String, year: Int): TmdbResult<Title> {
         val apiKey = store[KEY_TMDB] ?: return TmdbResult.Failure(TmdbError.InvalidApiKey)
         return try {
-            val candidates = apiClient.search("$title $year", apiKey, 1).titles
+            val candidates = apiClient.search(title, apiKey, 1).titles
             val match = candidates.firstOrNull { it.year == year } ?: candidates.firstOrNull()
                 ?: return TmdbResult.Failure(TmdbError.NotFound)
             TmdbResult.Success(apiClient.fetchDetails(match.id, match.mediaType, apiKey))
