@@ -92,7 +92,8 @@ class RateViewModel : ViewModel() {
                 "1. Title (Year)\n2. Title (Year)\n3. Title (Year)\n4. Title (Year)\n5. Title (Year)\n" +
                 "No explanation, no markdown, no other text. Just 5 numbered lines."
 
-            val messages = mutableListOf("user" to "$listBody\n\nrate")
+            // Send the full file (header + body) so Claude sees its own instructions
+            val messages = mutableListOf("user" to "$listContent\n\nrate")
             var lastResponse = ""
             var titles: List<Pair<String, Int>> = emptyList()
 
@@ -114,6 +115,44 @@ class RateViewModel : ViewModel() {
             if (titles.isEmpty()) {
                 _uiState.value = RateUiState.Error(
                     "Could not get 5 titles from Claude.",
+                    "Last response: [$lastResponse]"
+                )
+                return@launch
+            }
+
+            // Code-level dedup: accumulate only titles not already in the list.
+            // If Claude returns some duplicates we keep the clean ones, tell Claude exactly
+            // how many replacements we still need, and keep going until we have 5 or run out of retries.
+            var cleanTitles = titles.filterNot { (t, y) -> isTitleInList(t, y, listBody) }
+            Log.d("Rate", "Dedup: ${titles.size - cleanTitles.size} duplicate(s) removed, ${cleanTitles.size} clean")
+            var dedupeAttempt = 0
+            while (cleanTitles.size < 5 && dedupeAttempt < 3) {
+                val need = 5 - cleanTitles.size
+                val accepted = cleanTitles.joinToString(", ") { "\"${it.first} (${it.second})\"" }
+                val prompt = if (accepted.isNotEmpty())
+                    "Some of your suggestions are already in the list. I still need $need more titles not in the list. Already accepted: $accepted. Respond with exactly $need numbered titles starting from 1."
+                else
+                    "All suggested titles are already in the list. Please suggest $need completely different titles not in the list. Respond with exactly $need numbered titles starting from 1."
+                messages.add("user" to prompt)
+                val result = app.anthropicService.sendMessages(messages, systemPrompt)
+                if (result is AnthropicResult.Failure) {
+                    _uiState.value = RateUiState.Error(result.error.toMessage())
+                    return@launch
+                }
+                lastResponse = (result as AnthropicResult.Success).value
+                Log.d("Rate", "Dedup attempt $dedupeAttempt response: [$lastResponse]")
+                messages.add("assistant" to lastResponse)
+                val newClean = parseRateTitles(lastResponse).filterNot { (t, y) ->
+                    isTitleInList(t, y, listBody) || cleanTitles.any { it.first.equals(t, ignoreCase = true) }
+                }
+                Log.d("Rate", "Dedup attempt $dedupeAttempt: ${newClean.size} new clean title(s)")
+                cleanTitles = (cleanTitles + newClean).take(5)
+                dedupeAttempt++
+            }
+            titles = cleanTitles
+            if (titles.isEmpty()) {
+                _uiState.value = RateUiState.Error(
+                    "Could not get any new titles from Claude.",
                     "Last response: [$lastResponse]"
                 )
                 return@launch
@@ -198,6 +237,14 @@ class RateViewModel : ViewModel() {
         private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         private val NUMBERED_REGEX = Regex("""^\d+\.\s+(.+?)\s*\((\d{4})\)\s*$""")
+
+        /** True if the title already appears anywhere in the list body (any rating, including 0). */
+        fun isTitleInList(title: String, year: Int, listBody: String): Boolean {
+            val needle = "$title ($year)".lowercase().trim()
+            return listBody.lines().any { line ->
+                line.trimStart('-', ' ').trim().lowercase().startsWith(needle)
+            }
+        }
 
         fun parseRateTitles(response: String): List<Pair<String, Int>> =
             response.lines().mapNotNull { line ->
