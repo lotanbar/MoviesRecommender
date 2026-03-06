@@ -68,7 +68,7 @@ fun ActionsScreen(navController: NavHostController) {
             listOf(
                 "Search"    to Screen.Search.route,
                 "Recommend" to Screen.Recommend.route,
-                "Rate"      to null,              // TODO (Commit 12): wire Rate flow
+                "Rate"      to Screen.Rate.route,
                 "Wishlist"  to Screen.Wishlist.route
             ).forEach { (label, route) ->
                 Button(

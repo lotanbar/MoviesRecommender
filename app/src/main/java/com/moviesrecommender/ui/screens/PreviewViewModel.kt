@@ -102,11 +102,16 @@ class PreviewViewModel(
         val updated = updateListRating(listContent ?: "", t.title, t.year, newRating)
         listContent = updated
         app.cachedListContent = updated
-        _uiState.value = loaded.copy(rating = newRating, isUploading = true, uploadError = false)
-        viewModelScope.launch {
-            val success = dropboxService.uploadList(updated) is DropboxResult.Success
-            val current = _uiState.value as? PreviewUiState.Loaded ?: return@launch
-            _uiState.value = current.copy(isUploading = false, uploadError = !success)
+        if (app.rateMode) {
+            // Rate flow defers upload to the end of the batch
+            _uiState.value = loaded.copy(rating = newRating, isUploading = false, uploadError = false)
+        } else {
+            _uiState.value = loaded.copy(rating = newRating, isUploading = true, uploadError = false)
+            viewModelScope.launch {
+                val success = dropboxService.uploadList(updated) is DropboxResult.Success
+                val current = _uiState.value as? PreviewUiState.Loaded ?: return@launch
+                _uiState.value = current.copy(isUploading = false, uploadError = !success)
+            }
         }
     }
 
@@ -115,11 +120,15 @@ class PreviewViewModel(
         val updated = removeEntry(listContent ?: "", t.title, t.year)
         listContent = updated
         app.cachedListContent = updated
-        _uiState.value = loaded.copy(rating = null, isUploading = true, uploadError = false)
-        viewModelScope.launch {
-            val success = dropboxService.uploadList(updated) is DropboxResult.Success
-            val current = _uiState.value as? PreviewUiState.Loaded ?: return@launch
-            _uiState.value = current.copy(isUploading = false, uploadError = !success)
+        if (app.rateMode) {
+            _uiState.value = loaded.copy(rating = null, isUploading = false, uploadError = false)
+        } else {
+            _uiState.value = loaded.copy(rating = null, isUploading = true, uploadError = false)
+            viewModelScope.launch {
+                val success = dropboxService.uploadList(updated) is DropboxResult.Success
+                val current = _uiState.value as? PreviewUiState.Loaded ?: return@launch
+                _uiState.value = current.copy(isUploading = false, uploadError = !success)
+            }
         }
     }
 

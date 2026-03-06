@@ -39,6 +39,9 @@ class MoviesRecommenderApp : Application() {
     /** In-memory list cache shared between Recommend/Rate flows and PreviewScreen. */
     var cachedListContent: String? = null
 
+    /** True while the Rate flow is active — suppresses per-title Dropbox uploads in PreviewViewModel. */
+    var rateMode: Boolean = false
+
     companion object {
         lateinit var instance: MoviesRecommenderApp
             private set
