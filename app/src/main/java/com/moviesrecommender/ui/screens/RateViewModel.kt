@@ -4,6 +4,9 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.moviesrecommender.MoviesRecommenderApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import com.moviesrecommender.data.remote.anthropic.AnthropicError
 import com.moviesrecommender.data.remote.anthropic.AnthropicResult
 import com.moviesrecommender.data.remote.dropbox.DropboxError
@@ -51,7 +54,15 @@ class RateViewModel : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
-        app.rateMode = false
+        // rateMode is still true if the ViewModel was cleared by navigation (e.g. user backed
+        // from PreviewScreen directly to Actions, bypassing onBackPressed). Upload any
+        // accumulated ratings before the instance is discarded.
+        if (app.rateMode) {
+            app.rateMode = false
+            val content = app.cachedListContent ?: return
+            app.cachedListContent = null
+            cleanupScope.launch { app.dropboxService.uploadList(content) }
+        }
     }
 
     fun startBatch() {
@@ -183,6 +194,9 @@ class RateViewModel : ViewModel() {
     }
 
     companion object {
+        // Outlives the ViewModel — used for cleanup uploads when the VM is cleared abruptly
+        private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
         private val NUMBERED_REGEX = Regex("""^\d+\.\s+(.+?)\s*\((\d{4})\)\s*$""")
 
         fun parseRateTitles(response: String): List<Pair<String, Int>> =

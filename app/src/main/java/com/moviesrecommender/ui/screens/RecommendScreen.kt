@@ -40,7 +40,7 @@ fun RecommendScreen(navController: NavHostController) {
 
     LaunchedEffect(Unit) {
         viewModel.navigateToPreview.collect { (tmdbId, mediaType) ->
-            navController.navigate(Screen.Preview.createRoute(tmdbId, mediaType))
+            navController.navigate(Screen.Preview.createRoute(tmdbId, mediaType, "recommend"))
         }
     }
 

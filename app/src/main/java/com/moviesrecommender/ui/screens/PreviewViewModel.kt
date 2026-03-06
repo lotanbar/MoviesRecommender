@@ -11,8 +11,11 @@ import com.moviesrecommender.data.remote.tmdb.TmdbResult
 import com.moviesrecommender.data.remote.wikidata.Award
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
@@ -33,7 +36,8 @@ sealed class PreviewUiState {
 
 class PreviewViewModel(
     private val tmdbId: Int,
-    private val mediaTypeStr: String
+    private val mediaTypeStr: String,
+    private val source: String = "search"
 ) : ViewModel() {
 
     private val app = MoviesRecommenderApp.instance
@@ -46,6 +50,10 @@ class PreviewViewModel(
 
     private val _uiState = MutableStateFlow<PreviewUiState>(PreviewUiState.Loading)
     val uiState: StateFlow<PreviewUiState> = _uiState.asStateFlow()
+
+    // Emitted after rating in Rate mode — PreviewScreen pops back to RateScreen to advance the queue
+    private val _autoAdvance = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val autoAdvance: SharedFlow<Unit> = _autoAdvance.asSharedFlow()
 
     init {
         viewModelScope.launch { load() }
@@ -102,9 +110,10 @@ class PreviewViewModel(
         val updated = updateListRating(listContent ?: "", t.title, t.year, newRating)
         listContent = updated
         app.cachedListContent = updated
-        if (app.rateMode) {
-            // Rate flow defers upload to the end of the batch
+        if (source == "rate") {
+            // Rate flow: defer upload to end of batch, then auto-advance to next title
             _uiState.value = loaded.copy(rating = newRating, isUploading = false, uploadError = false)
+            viewModelScope.launch { _autoAdvance.emit(Unit) }
         } else {
             _uiState.value = loaded.copy(rating = newRating, isUploading = true, uploadError = false)
             viewModelScope.launch {
@@ -120,7 +129,7 @@ class PreviewViewModel(
         val updated = removeEntry(listContent ?: "", t.title, t.year)
         listContent = updated
         app.cachedListContent = updated
-        if (app.rateMode) {
+        if (source == "rate") {
             _uiState.value = loaded.copy(rating = null, isUploading = false, uploadError = false)
         } else {
             _uiState.value = loaded.copy(rating = null, isUploading = true, uploadError = false)
@@ -157,9 +166,10 @@ class PreviewViewModel(
 
 class PreviewViewModelFactory(
     private val tmdbId: Int,
-    private val mediaTypeStr: String
+    private val mediaTypeStr: String,
+    private val source: String = "search"
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        PreviewViewModel(tmdbId, mediaTypeStr) as T
+        PreviewViewModel(tmdbId, mediaTypeStr, source) as T
 }

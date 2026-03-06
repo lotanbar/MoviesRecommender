@@ -10,7 +10,8 @@ sealed class Screen(val route: String) {
     object Recommend : Screen("recommend")
     object Rate     : Screen("rate")
     object Wishlist  : Screen("wishlist")
-    object Preview   : Screen("preview/{tmdbId}/{mediaType}") {
-        fun createRoute(id: Int, mediaType: String) = "preview/$id/$mediaType"
+    object Preview   : Screen("preview/{tmdbId}/{mediaType}/{source}") {
+        fun createRoute(id: Int, mediaType: String, source: String = "search") =
+            "preview/$id/$mediaType/$source"
     }
 }

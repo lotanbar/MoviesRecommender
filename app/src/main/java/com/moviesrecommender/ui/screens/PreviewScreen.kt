@@ -2,6 +2,7 @@ package com.moviesrecommender.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
@@ -42,6 +43,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -61,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.moviesrecommender.navigation.Screen
 import coil.compose.AsyncImage
 import com.moviesrecommender.R
 import com.moviesrecommender.data.remote.tmdb.MediaType
@@ -69,12 +72,27 @@ import com.moviesrecommender.data.remote.tmdb.MediaType
 fun PreviewScreen(
     navController: NavHostController,
     tmdbId: Int,
-    mediaType: String
+    mediaType: String,
+    source: String = "search"
 ) {
     val viewModel: PreviewViewModel = viewModel(
-        factory = PreviewViewModelFactory(tmdbId, mediaType)
+        factory = PreviewViewModelFactory(tmdbId, mediaType, source)
     )
     val uiState by viewModel.uiState.collectAsState()
+
+    // Rate mode: after the user taps a rating, auto-pop back to RateScreen to advance the queue
+    if (source == "rate") {
+        LaunchedEffect(Unit) {
+            viewModel.autoAdvance.collect { navController.popBackStack() }
+        }
+    }
+
+    // Recommend / Rate: back gesture goes straight to the main Actions screen
+    if (source == "recommend" || source == "rate") {
+        BackHandler {
+            navController.popBackStack(Screen.Actions.route, inclusive = false)
+        }
+    }
 
     Scaffold(
         bottomBar = {

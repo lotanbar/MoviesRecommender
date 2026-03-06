@@ -38,7 +38,7 @@ fun RateScreen(navController: NavHostController) {
     // Navigate to Preview for each title in the batch
     LaunchedEffect("preview") {
         viewModel.navigateToPreview.collect { (tmdbId, mediaType) ->
-            navController.navigate(Screen.Preview.createRoute(tmdbId, mediaType))
+            navController.navigate(Screen.Preview.createRoute(tmdbId, mediaType, "rate"))
         }
     }
 

@@ -53,12 +53,14 @@ fun AppNavigation(navController: NavHostController, appViewModel: AppViewModel) 
             route = Screen.Preview.route,
             arguments = listOf(
                 navArgument("tmdbId") { type = NavType.IntType },
-                navArgument("mediaType") { type = NavType.StringType }
+                navArgument("mediaType") { type = NavType.StringType },
+                navArgument("source") { type = NavType.StringType; defaultValue = "search" }
             )
         ) { backStackEntry ->
             val tmdbId = backStackEntry.arguments?.getInt("tmdbId") ?: 0
             val mediaType = backStackEntry.arguments?.getString("mediaType") ?: "MOVIE"
-            PreviewScreen(navController, tmdbId, mediaType)
+            val source = backStackEntry.arguments?.getString("source") ?: "search"
+            PreviewScreen(navController, tmdbId, mediaType, source)
         }
     }
 }
