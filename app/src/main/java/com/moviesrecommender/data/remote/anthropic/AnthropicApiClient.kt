@@ -10,6 +10,12 @@ interface AnthropicApiClient {
         prompt: String,
         system: String? = null
     ): String
+    suspend fun sendMessages(
+        apiKey: String,
+        modelId: String,
+        messages: List<Pair<String, String>>,
+        system: String? = null
+    ): String
 }
 
 sealed class AnthropicApiException(message: String) : Exception(message) {

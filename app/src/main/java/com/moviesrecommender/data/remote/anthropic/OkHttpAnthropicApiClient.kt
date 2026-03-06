@@ -78,6 +78,42 @@ class OkHttpAnthropicApiClient(
         throw AnthropicApiException.ServerError("No text block in response")
     }
 
+    override suspend fun sendMessages(
+        apiKey: String,
+        modelId: String,
+        messages: List<Pair<String, String>>,
+        system: String?
+    ): String = withContext(Dispatchers.IO) {
+        val bodyJson = JSONObject().apply {
+            put("model", debugModel)
+            put("max_tokens", 1024)
+            if (system != null) put("system", system)
+            put("messages", org.json.JSONArray().apply {
+                messages.forEach { (role, content) ->
+                    put(JSONObject().apply {
+                        put("role", role)
+                        put("content", content)
+                    })
+                }
+            })
+        }.toString()
+
+        val request = Request.Builder()
+            .url("https://api.anthropic.com/v1/messages")
+            .addHeader("x-api-key", apiKey)
+            .addHeader("anthropic-version", "2023-06-01")
+            .post(bodyJson.toRequestBody(json))
+            .build()
+
+        val responseBody = execute(apiKey, request)
+        val content = JSONObject(responseBody).getJSONArray("content")
+        for (i in 0 until content.length()) {
+            val block = content.getJSONObject(i)
+            if (block.getString("type") == "text") return@withContext block.getString("text")
+        }
+        throw AnthropicApiException.ServerError("No text block in response")
+    }
+
     private fun execute(apiKey: String, request: Request): String {
         return try {
             val response = httpClient.newCall(request).execute()

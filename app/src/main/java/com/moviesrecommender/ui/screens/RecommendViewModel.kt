@@ -60,20 +60,33 @@ class RecommendViewModel : ViewModel() {
                 "in this exact format: Title (Year)\n" +
                 "No explanation, no markdown, no other text. Just: Title (Year)"
 
-            var userMessage = "$listContent\n\nrecommend"
+            val listBody = listContent
+                .substringAfter("================================================================================")
+                .trimStart('\r', '\n')
+            val ratedSection = listBody.substringBefore("RATING: 0")
+
+            val messages = mutableListOf("user" to "$listBody\n\nrecommend")
             var lastResponse = ""
             for (attempt in 0 until 5) {
-                val result = app.anthropicService.sendRawMessage(userMessage, systemPrompt)
+                val result = app.anthropicService.sendMessages(messages, systemPrompt)
                 if (result is AnthropicResult.Failure) {
                     _uiState.value = RecommendUiState.Error(result.error.toMessage())
                     return@launch
                 }
                 lastResponse = (result as AnthropicResult.Success).value
                 Log.d("Recommend", "Attempt $attempt response: [$lastResponse]")
+                messages.add("assistant" to lastResponse)
+
                 val parsed = parseTitleYear(lastResponse)
                 Log.d("Recommend", "Parsed: $parsed")
                 if (parsed == null) {
-                    userMessage = "$listContent\n\nrecommend\n\n$lastResponse\n\nMake sure you provide title and year only!"
+                    messages.add("user" to "Provide only the title and year in the format: Title (Year)")
+                    continue
+                }
+
+                if (isTitleInRatedList(parsed.first, parsed.second, ratedSection)) {
+                    Log.d("Recommend", "${parsed.first} (${parsed.second}) is already in the list, asking for another")
+                    messages.add("user" to "\"${parsed.first} (${parsed.second})\" is already in your list. Please recommend a different title.")
                     continue
                 }
 
@@ -97,7 +110,7 @@ class RecommendViewModel : ViewModel() {
             }
 
             _uiState.value = RecommendUiState.Error(
-                message = "Could not parse a valid title from Claude's response.",
+                message = "Could not get a valid recommendation from Claude.",
                 debugInfo = "Last response: [$lastResponse]"
             )
         }
@@ -119,6 +132,13 @@ class RecommendViewModel : ViewModel() {
             val title = match.groupValues[1].trim()
             val year = match.groupValues[2].toIntOrNull() ?: return null
             return Pair(title, year)
+        }
+
+        fun isTitleInRatedList(title: String, year: Int, ratedSection: String): Boolean {
+            val needle = "$title ($year)".lowercase()
+            return ratedSection.lines().any { line ->
+                line.trimStart('-', ' ').lowercase().startsWith(needle)
+            }
         }
     }
 }

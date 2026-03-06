@@ -8,6 +8,7 @@ import com.moviesrecommender.data.remote.dropbox.DropboxResult
 import com.moviesrecommender.data.remote.tmdb.MediaType
 import com.moviesrecommender.data.remote.tmdb.Title
 import com.moviesrecommender.data.remote.tmdb.TmdbResult
+import com.moviesrecommender.data.remote.wikidata.Award
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +23,7 @@ sealed class PreviewUiState {
         val rating: Int?,
         val wikipediaUrl: String? = null,
         val wikipediaReady: Boolean = false,
-        val awards: List<String> = emptyList(),
+        val awards: List<Award> = emptyList(),
         val awardsReady: Boolean = false,
         val isUploading: Boolean = false,
         val uploadError: Boolean = false

@@ -282,36 +282,13 @@ private fun DetailsPage(
                 }
             }
 
-            // Overview
-            title.overview?.takeIf { it.isNotBlank() }?.let { overview ->
-                Text(overview, style = MaterialTheme.typography.bodyMedium, color = Color.White)
-            }
-
-            // Cast & crew
+            // Cast
             if (title.leadActors.isNotEmpty()) {
                 Text(
                     "Starring: ${title.leadActors.joinToString(", ")}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White
                 )
-            }
-
-            val prodLine = listOfNotNull(
-                title.productionCompany,
-                title.country?.let { countryCodeToName(it) }
-            ).joinToString(" · ")
-            if (prodLine.isNotEmpty()) {
-                Text(prodLine, style = MaterialTheme.typography.bodyMedium, color = Color.White)
-            }
-
-            title.director?.let {
-                Text("Director: $it", style = MaterialTheme.typography.bodyMedium, color = Color.White)
-            }
-            title.writer?.let {
-                Text("Writer: $it", style = MaterialTheme.typography.bodyMedium, color = Color.White)
-            }
-            title.producers.forEach { prod ->
-                Text("Producer: $prod", style = MaterialTheme.typography.bodyMedium, color = Color.White)
             }
 
             // Awards
@@ -333,9 +310,39 @@ private fun DetailsPage(
                         color = Color.White
                     )
                     state.awards.forEach { award ->
-                        Text("· $award", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                        val label = if (award.year != null) "· ${award.name} (${award.year})"
+                                    else "· ${award.name}"
+                        Text(label, style = MaterialTheme.typography.bodyMedium, color = Color.White)
                     }
                 }
+            }
+
+            // Overview
+            title.overview?.takeIf { it.isNotBlank() }?.let { overview ->
+                Text(overview, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            }
+
+            // Crew & production
+            val prodLine = listOfNotNull(
+                title.productionCompany,
+                title.country?.let { countryCodeToName(it) }
+            ).joinToString(" · ")
+            if (prodLine.isNotEmpty()) {
+                Text(prodLine, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            }
+
+            title.director?.let {
+                Text("Director: $it", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            }
+            title.writer?.let {
+                Text("Writer: $it", style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            }
+            if (title.producers.isNotEmpty()) {
+                Text(
+                    "Producer: ${title.producers.joinToString(", ")}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White
+                )
             }
         }
 

@@ -7,20 +7,28 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
 
+data class Award(val name: String, val year: Int?)
+
 class OkHttpWikidataApiClient(
     private val httpClient: OkHttpClient = OkHttpClient()
 ) {
-    // P4947 = TMDb movie ID, P4983 = TMDb TV series ID, P166 = award received
-    suspend fun getAwards(tmdbId: Int, isMovie: Boolean): List<String> =
+    // P4947 = TMDb movie ID, P4983 = TMDb TV series ID, P166 = award received, P585 = point in time
+    suspend fun getAwards(tmdbId: Int, isMovie: Boolean): List<Award> =
         withContext(Dispatchers.IO) {
             val property = if (isMovie) "P4947" else "P4983"
             val query = """
-                SELECT DISTINCT ?awardLabel WHERE {
+                SELECT DISTINCT ?awardLabel ?year WHERE {
                   ?item wdt:$property "$tmdbId" .
-                  ?item wdt:P166 ?award .
+                  ?item p:P166 ?awardStatement .
+                  ?awardStatement ps:P166 ?award .
                   ?award rdfs:label ?awardLabel .
                   FILTER(LANG(?awardLabel) = "en")
+                  OPTIONAL {
+                    ?awardStatement pq:P585 ?pointInTime .
+                    BIND(YEAR(?pointInTime) AS ?year)
+                  }
                 }
+                ORDER BY ?year
                 LIMIT 50
             """.trimIndent()
             val encoded = URLEncoder.encode(query, "UTF-8")
@@ -40,11 +48,15 @@ class OkHttpWikidataApiClient(
                     .getJSONArray("bindings")
                 buildList {
                     for (i in 0 until bindings.length()) {
-                        bindings.getJSONObject(i)
-                            .optJSONObject("awardLabel")
+                        val binding = bindings.getJSONObject(i)
+                        val label = binding.optJSONObject("awardLabel")
                             ?.optString("value")
                             ?.takeIf { it.isNotBlank() && isNotableAward(it) }
-                            ?.let { if (!contains(it)) add(it) }
+                            ?: continue
+                        val year = binding.optJSONObject("year")
+                            ?.optString("value")
+                            ?.toIntOrNull()
+                        if (none { it.name == label }) add(Award(label, year))
                     }
                 }
             } catch (e: Exception) {

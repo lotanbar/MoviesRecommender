@@ -23,6 +23,19 @@ class AnthropicService(
         }
     }
 
+    /** Send a multi-turn conversation, with optional system prompt. */
+    suspend fun sendMessages(messages: List<Pair<String, String>>, system: String? = null): AnthropicResult<String> {
+        val apiKey = authManager.getApiKey()
+            ?: return AnthropicResult.Failure(AnthropicError.ApiKeyMissing)
+        val modelId = authManager.getModelId()
+            ?: return AnthropicResult.Failure(AnthropicError.ModelNotSelected)
+        return try {
+            AnthropicResult.Success(apiClient.sendMessages(apiKey, modelId, messages, system).trim())
+        } catch (e: AnthropicApiException) {
+            AnthropicResult.Failure(e.toAnthropicError())
+        }
+    }
+
     /** Send a pre-built user message, with optional system prompt. */
     suspend fun sendRawMessage(prompt: String, system: String? = null): AnthropicResult<String> {
         val apiKey = authManager.getApiKey()
