@@ -58,7 +58,7 @@ class OkHttpDropboxApiClient(
                 .url("https://content.dropboxapi.com/2/files/upload")
                 .addHeader("Authorization", "Bearer $accessToken")
                 .addHeader("Dropbox-API-Arg", arg)
-                .post(content.toRequestBody(octetStream))
+                .post(content.toByteArray(Charsets.UTF_8).toRequestBody(octetStream))
                 .build()
             execute(request)
             Unit

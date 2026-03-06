@@ -1,5 +1,6 @@
 package com.moviesrecommender.ui.screens
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -51,12 +52,39 @@ class PreviewViewModel(
     private val _uiState = MutableStateFlow<PreviewUiState>(PreviewUiState.Loading)
     val uiState: StateFlow<PreviewUiState> = _uiState.asStateFlow()
 
-    // Emitted after rating in Rate mode — PreviewScreen pops back to RateScreen to advance the queue
-    private val _autoAdvance = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val autoAdvance: SharedFlow<Unit> = _autoAdvance.asSharedFlow()
+    // Emitted after rating in Rate mode:
+    // - non-null: navigate directly to next title (no RateScreen round-trip)
+    // - null: batch done, pop back to RateScreen to trigger next batch
+    private val _autoAdvance = MutableSharedFlow<Pair<Int, String>?>(extraBufferCapacity = 1)
+    val autoAdvance: SharedFlow<Pair<Int, String>?> = _autoAdvance.asSharedFlow()
 
     init {
-        viewModelScope.launch { load() }
+        val preloaded = app.cachedTitles[tmdbId]
+        val cachedList = app.cachedListContent
+        if (preloaded != null && cachedList != null) {
+            // Rate flow: data is pre-fetched — go straight to Loaded, no network needed
+            listContent = cachedList
+            _uiState.value = PreviewUiState.Loaded(
+                title = preloaded,
+                rating = SearchViewModel.parseRating(cachedList, preloaded.title)
+            )
+            loadWikidataMetadata(preloaded)
+        } else {
+            viewModelScope.launch { load() }
+        }
+    }
+
+    private fun loadWikidataMetadata(title: Title) {
+        viewModelScope.launch {
+            val url = wikidataApiClient.getWikipediaUrl(tmdbId, mediaType == MediaType.MOVIE, title.title)
+            val current = _uiState.value as? PreviewUiState.Loaded ?: return@launch
+            _uiState.value = current.copy(wikipediaUrl = url, wikipediaReady = true)
+        }
+        viewModelScope.launch {
+            val awards = wikidataApiClient.getAwards(tmdbId, mediaType == MediaType.MOVIE)
+            val current = _uiState.value as? PreviewUiState.Loaded ?: return@launch
+            _uiState.value = current.copy(awards = awards, awardsReady = true)
+        }
     }
 
     private suspend fun load() = coroutineScope {
@@ -79,17 +107,7 @@ class PreviewViewModel(
                     title = t,
                     rating = listContent?.let { SearchViewModel.parseRating(it, t.title) }
                 )
-                // Fetch Wikipedia URL and awards from Wikidata in background
-                launch {
-                    val url = wikidataApiClient.getWikipediaUrl(tmdbId, mediaType == MediaType.MOVIE, t.title)
-                    val current = _uiState.value as? PreviewUiState.Loaded ?: return@launch
-                    _uiState.value = current.copy(wikipediaUrl = url, wikipediaReady = true)
-                }
-                launch {
-                    val awards = wikidataApiClient.getAwards(tmdbId, mediaType == MediaType.MOVIE)
-                    val current = _uiState.value as? PreviewUiState.Loaded ?: return@launch
-                    _uiState.value = current.copy(awards = awards, awardsReady = true)
-                }
+                loadWikidataMetadata(t)
             }
             is TmdbResult.Failure -> _uiState.value = PreviewUiState.Error("Failed to load title")
         }
@@ -98,6 +116,11 @@ class PreviewViewModel(
     fun toggleInList() {
         val loaded = _uiState.value as? PreviewUiState.Loaded ?: return
         if (loaded.rating == null) saveRating(loaded, 0) else deleteFromList(loaded)
+    }
+
+    fun setNotSeen() {
+        val loaded = _uiState.value as? PreviewUiState.Loaded ?: return
+        if (loaded.rating == 0) deleteFromList(loaded) else saveRating(loaded, 0)
     }
 
     fun setRating(stars: Int) {
@@ -111,15 +134,25 @@ class PreviewViewModel(
         listContent = updated
         app.cachedListContent = updated
         if (source == "rate") {
-            // Rate flow: defer upload to end of batch, then auto-advance to next title
-            _uiState.value = loaded.copy(rating = newRating, isUploading = false, uploadError = false)
-            viewModelScope.launch { _autoAdvance.emit(Unit) }
+            _uiState.value = loaded.copy(rating = newRating, isUploading = true, uploadError = false)
+            viewModelScope.launch {
+                val uploadResult = app.dropboxService.uploadList(updated)
+                val failed = uploadResult is DropboxResult.Failure
+                if (failed) Log.e("Dropbox", "Upload failed in rate flow: ${(uploadResult as DropboxResult.Failure).error}")
+                val current = _uiState.value as? PreviewUiState.Loaded
+                if (current != null) _uiState.value = current.copy(isUploading = false, uploadError = failed)
+                val nextIndex = app.rateQueueIndex + 1
+                app.rateQueueIndex = nextIndex
+                val next = app.rateQueue.getOrNull(nextIndex)
+                _autoAdvance.emit(next)
+            }
         } else {
             _uiState.value = loaded.copy(rating = newRating, isUploading = true, uploadError = false)
             viewModelScope.launch {
-                val success = dropboxService.uploadList(updated) is DropboxResult.Success
+                val result = dropboxService.uploadList(updated)
+                if (result is DropboxResult.Failure) Log.e("Dropbox", "Upload failed: ${result.error}")
                 val current = _uiState.value as? PreviewUiState.Loaded ?: return@launch
-                _uiState.value = current.copy(isUploading = false, uploadError = !success)
+                _uiState.value = current.copy(isUploading = false, uploadError = result is DropboxResult.Failure)
             }
         }
     }
@@ -134,9 +167,10 @@ class PreviewViewModel(
         } else {
             _uiState.value = loaded.copy(rating = null, isUploading = true, uploadError = false)
             viewModelScope.launch {
-                val success = dropboxService.uploadList(updated) is DropboxResult.Success
+                val result = dropboxService.uploadList(updated)
+                if (result is DropboxResult.Failure) Log.e("Dropbox", "Upload failed: ${result.error}")
                 val current = _uiState.value as? PreviewUiState.Loaded ?: return@launch
-                _uiState.value = current.copy(isUploading = false, uploadError = !success)
+                _uiState.value = current.copy(isUploading = false, uploadError = result is DropboxResult.Failure)
             }
         }
     }

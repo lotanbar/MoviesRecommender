@@ -22,9 +22,6 @@ class OkHttpAnthropicApiClient(
 
     private val json = "application/json".toMediaType()
 
-    // TODO: revert to stored modelId for production (remove this override)
-    private val debugModel = "claude-haiku-4-5-20251001"
-
     override suspend fun fetchModels(apiKey: String): List<ModelInfo> =
         withContext(Dispatchers.IO) {
             val request = Request.Builder()
@@ -51,8 +48,8 @@ class OkHttpAnthropicApiClient(
         system: String?
     ): String = withContext(Dispatchers.IO) {
         val bodyJson = JSONObject().apply {
-            put("model", debugModel)  // TODO: revert to modelId
-            put("max_tokens", 1024)
+            put("model", modelId)
+            put("max_tokens", 2048)
             if (system != null) put("system", system)
             put("messages", org.json.JSONArray().apply {
                 put(JSONObject().apply {
@@ -85,8 +82,8 @@ class OkHttpAnthropicApiClient(
         system: String?
     ): String = withContext(Dispatchers.IO) {
         val bodyJson = JSONObject().apply {
-            put("model", debugModel)
-            put("max_tokens", 1024)
+            put("model", modelId)
+            put("max_tokens", 2048)
             if (system != null) put("system", system)
             put("messages", org.json.JSONArray().apply {
                 messages.forEach { (role, content) ->

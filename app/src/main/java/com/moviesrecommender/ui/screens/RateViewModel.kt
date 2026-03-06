@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 
 sealed class RateUiState {
     object Loading : RateUiState()
+    object InProgress : RateUiState()   // navigating between titles — RateScreen shows nothing
     object Uploading : RateUiState()
     data class Error(val message: String, val debugInfo: String? = null) : RateUiState()
 }
@@ -41,9 +42,8 @@ class RateViewModel : ViewModel() {
     private val _navigateToActions = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val navigateToActions: SharedFlow<Unit> = _navigateToActions.asSharedFlow()
 
-    // Queue of (tmdbId, mediaType) for the current batch of 5
-    private var queue: List<Pair<Int, String>> = emptyList()
-    private var currentIndex = 0
+    // Queue management lives in MoviesRecommenderApp (rateQueue/rateQueueIndex)
+    // so PreviewViewModel can advance directly without routing through RateScreen.
     private var hasNavigatedToPreview = false
     private var isBusy = false
 
@@ -54,11 +54,9 @@ class RateViewModel : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
-        // rateMode is still true if the ViewModel was cleared by navigation (e.g. user backed
-        // from PreviewScreen directly to Actions, bypassing onBackPressed). Upload any
-        // accumulated ratings before the instance is discarded.
         if (app.rateMode) {
             app.rateMode = false
+            app.cachedTitles.clear()
             val content = app.cachedListContent ?: return
             app.cachedListContent = null
             cleanupScope.launch { app.dropboxService.uploadList(content) }
@@ -68,8 +66,8 @@ class RateViewModel : ViewModel() {
     fun startBatch() {
         viewModelScope.launch {
             _uiState.value = RateUiState.Loading
-            queue = emptyList()
-            currentIndex = 0
+            app.rateQueue = emptyList()
+            app.rateQueueIndex = 0
 
             val listContent = app.cachedListContent
                 ?: when (val r = app.dropboxService.downloadList()) {
@@ -87,115 +85,67 @@ class RateViewModel : ViewModel() {
                 .trimStart('\r', '\n')
 
             val systemPrompt =
-                "You MUST respond with EXACTLY 5 movie or show titles and years, one per line, " +
-                "numbered 1–5, in this exact format:\n" +
-                "1. Title (Year)\n2. Title (Year)\n3. Title (Year)\n4. Title (Year)\n5. Title (Year)\n" +
-                "No explanation, no markdown, no other text. Just 5 numbered lines."
+                "You MUST respond with exactly 50 movie or show titles and years, one per line, " +
+                "numbered 1–50, in this exact format:\n" +
+                "1. Title (Year)\n2. Title (Year)\n...\n50. Title (Year)\n" +
+                "No explanation, no markdown, no other text. Just 50 numbered lines."
 
-            // Send the full file (header + body) so Claude sees its own instructions
-            val messages = mutableListOf("user" to "$listContent\n\nrate")
-            var lastResponse = ""
-            var titles: List<Pair<String, Int>> = emptyList()
-
-            for (attempt in 0 until 5) {
-                val result = app.anthropicService.sendMessages(messages, systemPrompt)
-                if (result is AnthropicResult.Failure) {
-                    _uiState.value = RateUiState.Error(result.error.toMessage())
-                    return@launch
-                }
-                lastResponse = (result as AnthropicResult.Success).value
-                Log.d("Rate", "Attempt $attempt response: [$lastResponse]")
-                messages.add("assistant" to lastResponse)
-
-                titles = parseRateTitles(lastResponse)
-                if (titles.size == 5) break
-                messages.add("user" to "Please provide exactly 5 titles, each on its own line:\n1. Title (Year)\n2. Title (Year)\n3. Title (Year)\n4. Title (Year)\n5. Title (Year)")
+            val result = app.anthropicService.sendMessages(
+                listOf("user" to "$listContent\n\nrate"),
+                systemPrompt
+            )
+            if (result is AnthropicResult.Failure) {
+                _uiState.value = RateUiState.Error(result.error.toMessage())
+                return@launch
             }
+            val response = (result as AnthropicResult.Success).value
+            Log.d("Rate", "Response: [$response]")
 
-            if (titles.isEmpty()) {
+            val candidates = parseRateTitles(response)
+                .filterNot { (t, _) -> isTitleInList(t, 0, listBody) }
+                .distinctBy { it.first.lowercase() }
+            Log.d("Rate", "${candidates.size} unique new candidates")
+
+            if (candidates.isEmpty()) {
                 _uiState.value = RateUiState.Error(
-                    "Could not get 5 titles from Claude.",
-                    "Last response: [$lastResponse]"
+                    "Claude suggested no new titles.",
+                    "Last response: [$response]"
                 )
                 return@launch
             }
 
-            // Code-level dedup: accumulate only titles not already in the list.
-            // If Claude returns some duplicates we keep the clean ones, tell Claude exactly
-            // how many replacements we still need, and keep going until we have 5 or run out of retries.
-            var cleanTitles = titles.filterNot { (t, y) -> isTitleInList(t, y, listBody) }
-            Log.d("Rate", "Dedup: ${titles.size - cleanTitles.size} duplicate(s) removed, ${cleanTitles.size} clean")
-            var dedupeAttempt = 0
-            while (cleanTitles.size < 5 && dedupeAttempt < 3) {
-                val need = 5 - cleanTitles.size
-                val accepted = cleanTitles.joinToString(", ") { "\"${it.first} (${it.second})\"" }
-                val prompt = if (accepted.isNotEmpty())
-                    "Some of your suggestions are already in the list. I still need $need more titles not in the list. Already accepted: $accepted. Respond with exactly $need numbered titles starting from 1."
-                else
-                    "All suggested titles are already in the list. Please suggest $need completely different titles not in the list. Respond with exactly $need numbered titles starting from 1."
-                messages.add("user" to prompt)
-                val result = app.anthropicService.sendMessages(messages, systemPrompt)
-                if (result is AnthropicResult.Failure) {
-                    _uiState.value = RateUiState.Error(result.error.toMessage())
-                    return@launch
-                }
-                lastResponse = (result as AnthropicResult.Success).value
-                Log.d("Rate", "Dedup attempt $dedupeAttempt response: [$lastResponse]")
-                messages.add("assistant" to lastResponse)
-                val newClean = parseRateTitles(lastResponse).filterNot { (t, y) ->
-                    isTitleInList(t, y, listBody) || cleanTitles.any { it.first.equals(t, ignoreCase = true) }
-                }
-                Log.d("Rate", "Dedup attempt $dedupeAttempt: ${newClean.size} new clean title(s)")
-                cleanTitles = (cleanTitles + newClean).take(5)
-                dedupeAttempt++
-            }
-            titles = cleanTitles
-            if (titles.isEmpty()) {
-                _uiState.value = RateUiState.Error(
-                    "Could not get any new titles from Claude.",
-                    "Last response: [$lastResponse]"
-                )
-                return@launch
-            }
-
-            // TMDB lookup for all titles in parallel
-            val tmdbResults = titles.map { (title, year) ->
+            // TMDB lookup for all candidates in parallel; skip any that fail
+            val tmdbResults = candidates.map { (title, year) ->
                 async { app.tmdbService.fetchMetadata(title, year) }
             }.awaitAll()
 
-            queue = tmdbResults.mapIndexedNotNull { i, result ->
-                when (result) {
-                    is TmdbResult.Success -> Pair(result.value.id, result.value.mediaType.name)
-                    is TmdbResult.Failure -> {
-                        Log.w("Rate", "TMDB failed for ${titles[i]}: ${result.error}")
-                        null
-                    }
-                }
-            }
+            val successes = tmdbResults.zip(candidates)
+                .mapNotNull { (r, _) -> (r as? TmdbResult.Success)?.value }
+            val failCount = tmdbResults.count { it is TmdbResult.Failure }
+            if (failCount > 0) Log.w("Rate", "$failCount titles not found on TMDB, skipped")
 
-            if (queue.isEmpty()) {
-                _uiState.value = RateUiState.Error(
-                    "Could not find any of the suggested titles on TMDB.",
-                    "Claude suggested: ${titles.joinToString { "${it.first} (${it.second})" }}"
-                )
+            if (successes.isEmpty()) {
+                _uiState.value = RateUiState.Error("None of the suggested titles were found on TMDB.")
                 return@launch
             }
 
+            app.cachedTitles.clear()
+            successes.forEach { app.cachedTitles[it.id] = it }
+
+            app.rateQueue = successes.map { Pair(it.id, it.mediaType.name) }
+            app.rateQueueIndex = 0
+
             hasNavigatedToPreview = true
-            _navigateToPreview.emit(queue[0])
+            _uiState.value = RateUiState.InProgress
+            _navigateToPreview.emit(app.rateQueue[0])
         }
     }
 
     fun onResumedFromPreview() {
         if (!hasNavigatedToPreview) return
         hasNavigatedToPreview = false
-        currentIndex++
-        if (currentIndex < queue.size) {
-            hasNavigatedToPreview = true
-            viewModelScope.launch { _navigateToPreview.emit(queue[currentIndex]) }
-        } else {
-            uploadAndRepeat()
-        }
+        // Batch complete — start the next batch
+        startBatch()
     }
 
     fun onBackPressed() {
@@ -205,9 +155,17 @@ class RateViewModel : ViewModel() {
             _uiState.value = RateUiState.Uploading
             val content = app.cachedListContent
             if (content != null) {
-                app.dropboxService.uploadList(content)
+                when (val r = app.dropboxService.uploadList(content)) {
+                    is DropboxResult.Failure -> {
+                        _uiState.value = RateUiState.Error(r.error.toUploadMessage())
+                        isBusy = false
+                        return@launch
+                    }
+                    else -> {}
+                }
             }
             app.rateMode = false
+            app.cachedTitles.clear()
             app.cachedListContent = null
             isBusy = false
             _navigateToActions.emit(Unit)
@@ -236,13 +194,14 @@ class RateViewModel : ViewModel() {
         // Outlives the ViewModel — used for cleanup uploads when the VM is cleared abruptly
         private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-        private val NUMBERED_REGEX = Regex("""^\d+\.\s+(.+?)\s*\((\d{4})\)\s*$""")
+        private val NUMBERED_REGEX = Regex("""^\d{1,2}\.\s+(.+?)\s*\((\d{4})\)\s*$""")
 
         /** True if the title already appears anywhere in the list body (any rating, including 0). */
         fun isTitleInList(title: String, year: Int, listBody: String): Boolean {
-            val needle = "$title ($year)".lowercase().trim()
+            val titleLower = title.lowercase().trim()
             return listBody.lines().any { line ->
-                line.trimStart('-', ' ').trim().lowercase().startsWith(needle)
+                val cleaned = line.trimStart('-', ' ').trim().lowercase()
+                cleaned == titleLower || cleaned.startsWith("$titleLower (")
             }
         }
 
@@ -281,3 +240,4 @@ private fun DropboxError.toUploadMessage(): String = when (this) {
     DropboxError.RateLimit -> "Upload failed: Too many requests. Try again shortly."
     is DropboxError.Unknown -> "Upload failed: $message"
 }
+
